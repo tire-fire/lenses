@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "lenses",
+  "description": "Multi-lens code review for Claude Code: six fresh-context reviewers, one ledger.",
+  "owner": {
+    "name": "Tirefire",
+    "url": "https://github.com/tire-fire"
+  },
+  "plugins": [
+    {
+      "name": "lenses",
+      "description": "Six independent review lenses run as fresh-context subagents against a branch diff, with every finding ledgered before the first fix.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}
