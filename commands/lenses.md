@@ -174,17 +174,63 @@ axis yields rather than pretending it is absolute.
 apply it to every comment and docstring added or changed in range. Before
 recommending a deletion, check whether a lint rule or style hook requires that
 comment form (the per-repo lens block names any such rule; otherwise read the lint
-config) — never recommend deleting a required one.
+config) — never recommend deleting a required one, but hold it to the same bar
+below: one line where one line will do.
 
-> **Priority above the usual cleanup: fact-check every comment that asserts a
-> mechanism.** For each comment claiming something about ordering, lifetime, who
-> calls what, what fires when, what a guard admits or prevents, or what is
-> guaranteed — trace it in the source and verify it is true. Report FALSE and
-> OVERCLAIMING comments FIRST, as their own findings, with the `file:line` evidence
-> showing what the code really does. Check especially for a correct statement of
-> the same fact elsewhere in the branch that the comment contradicts.
+> **Silence is golden. Judge every comment for necessity first, then length.** The
+> default is no comment. A comment earns its place only by stating something a
+> reader cannot get from the code and its names: a hidden constraint, an invariant
+> enforced elsewhere, a hardware, runtime or library quirk, a workaround's reason.
+> Everything else is DELETE:
+> - restating what the code does, or what a name already says;
+> - listing callers, call order, or the scenarios a branch handles;
+> - narrating the change: what it replaced, what used to happen, "now", "no
+>   longer", "instead of", the reasoning, review or bug that led to it. Comments
+>   are for a reader meeting this code for the first time, who never saw the old
+>   version; the change's story belongs in the commit message;
+> - a true sentence appended to make a comment "complete".
+>
+> What survives gets COMPRESSED hard: one line by default, two at most. A longer
+> comment needs a stated reason in your report, and the reason is never "it is all
+> true". Prefer deleting a clause to rewording it. Where a comment only changed a
+> word of the base branch's text, recommend restoring the base wording.
+>
+> Report, per file, comment lines added against code lines added, and flag every
+> file where comments outnumber code. Apply this to every comment in the range, not
+> only those changed since the last round: earlier rounds' additions are the
+> usual offenders.
 
-Then the DELETE / COMPRESS / KEEP pass with brief counts.
+> **Then fact-check every surviving comment that asserts a mechanism.** A false
+> comment is worse than none. For each comment claiming something about ordering,
+> lifetime, who calls what, what fires when, what a guard admits or prevents, or
+> what is guaranteed — trace it in the source and verify it is true. Report FALSE
+> and OVERCLAIMING comments FIRST, as their own findings, with the `file:line`
+> evidence showing what the code really does. Check especially for a correct
+> statement of the same fact elsewhere in the branch that the comment contradicts.
+
+> **Parity claims need both sides' USE, not both sides' value.** A comment saying
+> the new code reproduces what the old code did — "X's own defaults", "the same
+> timings", "reproduces what Y did" — is verified only when you have read how
+> *each* implementation consumes the value, not just that the numbers match. A
+> constant that is equal is not behaviour that is equal. Reading the declaration on
+> one side and the use on the other, then inferring equivalence across the gap, is
+> the specific mistake: report it as OVERCLAIMING and name the two call sites you
+> compared. If you cannot find where the old code used the value, say so rather
+> than treating the number as the answer.
+>
+> This is not hypothetical. A button driver migration carried OneButton's
+> `_click_ms = 400` across as iot_button's `short_press_time`. Both are 400ms and
+> both gate a click. But OneButton resolved the click immediately on release
+> whenever no double-click handler was attached (`_nClicks == _maxClicks`,
+> `OneButton.cpp:293`) and nothing in the project attached one, so the 400ms was
+> never waited; iot_button always waits it. Every click resolved 400ms late and
+> faster taps folded into a multi-click nothing handled, which made entering a
+> pairing code impossible. Six lenses read that driver. The one that got closest
+> cited the declaration and the new use, called the roles identical, and never
+> opened the old use.
+
+Then the DELETE / COMPRESS / KEEP pass with counts, DELETE first. A KEEP needs
+the one non-obvious fact the comment carries; if you cannot name it, it is DELETE.
 
 ## 3. While they run
 

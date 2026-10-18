@@ -1,17 +1,15 @@
 ---
 name: fixing-comments
-description: Use when cleaning up, reviewing, or fixing code comments — when comments narrate changes ("changed this to...", "now we..."), restate what the code obviously does, are multi-sentence/verbose, or when code feels over-commented. Also apply while writing new code to avoid producing such comments.
+description: Use when cleaning up, reviewing, or fixing code comments — when comments narrate changes ("changed this to...", "now we...", "instead of..."), list callers or scenarios, restate what the code or its names already say, make unverified mechanism or parity claims, are multi-sentence/verbose, or when code feels over-commented. Also apply while writing new code to avoid producing such comments.
 ---
 
 # Fixing Comments
 
 ## Overview
 
-A comment exists to tell a future reader something the code itself cannot: a hidden constraint, a non-obvious reason, an invariant, a warning. Everything else is noise that rots the moment the code changes.
+Silence is golden. The default is no comment. A comment exists only to tell a future reader something the code and its names cannot: a hidden constraint, an invariant enforced elsewhere, a hardware/runtime/library quirk, or a workaround's reason. Everything else is noise that rots the moment the code changes.
 
-**Core principle:** A good comment answers "why is this here?" — not "what does this line do?" and never "what did I just change?"
-
-Most comment cleanup is not binary delete-or-keep. There are **three** moves, and the verbose ones usually get compressed, not deleted.
+**Core principle:** Judge every comment for necessity first, then length. A good comment answers "why must this be this way?" — never "what does this line do?", never "who calls this?", and never "what did this branch change?"
 
 ## The Three-Way Decision
 
@@ -19,22 +17,24 @@ For every comment, pick one:
 
 | Move | When | Example |
 |------|------|---------|
-| **DELETE** | Narrates a change, restates the code, or states the obvious | `# Changed to a loop to avoid recursion` · `# Check if premium` · `# Return the result` |
-| **COMPRESS** | The WHY is real but buried in 2-4 sentences of explanation | 4 lines on how rounding math works → one line: the constraint that forces it |
-| **KEEP** | One line, states a non-obvious WHY the code can't show | `# Stripe floors to cents; a half-cent mismatch fails their charge validation` |
+| **DELETE** | Narrates a change, lists callers/scenarios, restates the code or a name, or pads a comment to feel "complete" | `# Changed to a loop to avoid recursion` · `# Called by sync() after boot` · `# Return the result` |
+| **COMPRESS** | A real hidden constraint is buried in multi-sentence explanation | 4 lines on how rounding math works → one line naming the external constraint that forces it |
+| **KEEP** | One line (two at most), states a verified non-obvious fact the code cannot show | `# Stripe floors to cents; a half-cent mismatch fails their charge validation` |
 
-The user's most common complaint is the missed **COMPRESS** move: a paragraph explaining transitive math or restating an algorithm should become a single line naming the *reason* — or be deleted if the reason is self-evident from the code.
+A KEEP needs the one non-obvious fact the comment carries; if you cannot name it, it is DELETE.
 
 ## What to DELETE on sight
 
-- **Change narration** — talking to the reviewer, not the reader: `# Changed this to...`, `# Now we use map`, `# Refactored to...`, `# Updated to handle X`. This belongs in the commit message.
-- **Restating the code** — `# loop over users` above `for user in users`, `# increment counter`, `# import os`.
+- **Change narration** — talking to the reviewer of the diff instead of a reader meeting the code for the first time: what it replaced, what used to happen, `"now"`, `"no longer"`, `"instead of"`, `"changed this to"`, `"refactored to"`, or the review/bug that led to it. The change's story belongs in the commit message.
+- **Caller lists, call order, and scenario lists** — enumerating who calls a function, in what sequence, or which cases a branch handles. Callers change without touching the callee, and the code already shows the branches.
+- **Restating the code or its names** — `# loop over users` above `for user in users`, `# increment counter`, or a docstring that repeats the function and parameter names in prose.
 - **Step labels** — `# Step 1: fetch`, `# First, validate` when the code is already linear and readable.
-- **Obvious intent** — `# Apply 20% discount` above `price * 0.8` under an `if tier == "premium"` branch. The code already says it.
+- **Obvious intent** — `# Apply 20% discount` above `price * 0.8` under an `if tier == "premium"` branch.
+- **Completeness padding** — a true sentence appended to a real WHY comment just to make the explanation feel complete.
 
 ## How to COMPRESS
 
-Strip everything the reader can see for themselves; keep only the fact they can't derive.
+What survives gets compressed hard: **one line by default, two at most.** "It is all true" is never a reason for a longer comment. Prefer deleting a clause to rewording it. Where a diff only changed a word of the base branch's comment without changing the fact, restore the base wording.
 
 ```python
 # BEFORE — four sentences narrating the math
@@ -59,35 +59,35 @@ amount = math.floor(amount * 100) / 100
 amount = math.floor(amount * 100) / 100
 ```
 
-## The "why is this here?" test
+## Fact-check every surviving comment
 
-Ask of each surviving comment: **does this state something the reader could NOT learn from the code itself?**
+A false comment is worse than none. Before keeping or compressing any comment that asserts a mechanism:
 
-- Yes → keep it, one line.
-- No → delete it.
+1. **Mechanism claims** — ordering, lifetime, who calls what, what fires when, what a guard admits or prevents, or what is guaranteed: trace the source and verify it holds. Check especially for a statement of the same fact elsewhere in the codebase that the comment contradicts.
+2. **Parity claims** — a comment saying new code reproduces old code ("X's own defaults", "the same timings", "reproduces what Y did") is verified only when you have read how *each* implementation consumes the value, not just that the numbers match. Equal constants are not equal behavior. Reading the declaration on one side and the use on the other, then inferring equivalence across the gap, is OVERCLAIMING.
 
-If you're explaining *what* the code does, the comment is wrong by default — improve a name or delete the comment instead. Comments earn their place only by explaining *why*.
+## Workflow when invoked as cleanup or review
 
-## Workflow when invoked as cleanup
-
-1. Read the file; classify each comment as DELETE / COMPRESS / KEEP.
-2. Apply edits in place. Don't add comments that weren't requested.
-3. Watch for the adjacent fix: a comment that exists only because a name is bad — rename the thing instead of annotating it (mention it, don't silently rename if scope was comment-only).
-4. Report counts briefly: e.g. "deleted 6, compressed 2, kept 3" — don't narrate each one.
+1. Check whether a lint rule or style hook requires a comment form (e.g., public Doxygen or docstrings) — never delete a required block, but compress it to one line where one line will do.
+2. Judge each comment for necessity first (DELETE vs survive), then compress survivors to 1–2 lines, then fact-check every mechanism and parity claim on what remains.
+3. Watch for the adjacent fix: a comment that exists only because a name is bad — rename the thing instead of annotating it (mention it if scope is comment-only).
+4. Report FALSE and OVERCLAIMING comments first with `file:line` evidence, then DELETE / COMPRESS / KEEP counts (DELETE first), and flag any file where comment lines added outnumber code lines added.
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| Over-deleting — stripping a real WHY because it "looked obvious" to you | If it encodes a constraint, workaround, or invariant the code can't show, KEEP one line of it |
-| Treating it as delete-or-keep only | Verbose WHY comments get COMPRESSED, not deleted |
-| Compressing into terse jargon the next reader can't parse | One plain-English line beats a cryptic fragment; readable > short |
-| Leaving change-narration because it "has context" | It's commit-message content. Delete it. |
-| Adding new explanatory comments during a cleanup pass | Cleanup removes noise; don't add unless the WHY is genuinely missing and non-obvious |
+| Keeping a multi-line comment because every sentence is true | Truth is a floor, not a justification; keep only the non-obvious constraint, in one line |
+| Leaving change narration (`"now"`, `"no longer"`, `"instead of"`) because it "has context" | It is commit-message content. Delete it. |
+| Leaving caller lists or call-order summaries | They rot silently the next time a caller changes. Delete them. |
+| Accepting a parity claim because the constant matches | Trace how both the old and new implementations *consume* the value |
+| Over-deleting a genuine hidden constraint because it looked short | If it encodes a quirk, workaround, or external invariant the code cannot show, KEEP one line of it |
+| Adding new explanatory comments during a cleanup pass | Cleanup removes noise; never add unless a hidden hazard is genuinely non-obvious |
 
-## Red Flags — the comment is probably noise
+## Red Flags — the comment is noise
 
-- Starts with "Changed", "Updated", "Now", "Refactored", "Fixed", "Added"
-- Is a sentence-by-sentence echo of the lines below it
+- Uses diff-relative words: "Changed", "Updated", "Now", "No longer", "Instead of", "Previously", "Refactored", "Fixed"
+- Lists callers ("Called from...", "Used by...") or narrates the branches below it
+- Is a sentence-by-sentence echo of the code or signature
 - Explains a language feature or basic math
-- Takes more than one line to say something the code already says
+- Takes more than two lines
