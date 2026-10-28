@@ -84,8 +84,12 @@ Give every agent this common preamble, substituting the resolved range and profi
 >   `file:line`. Read the surrounding unchanged code the change builds on — never
 >   reason from the diff alone. Trace call chains rather than inferring them from
 >   names. Say plainly when you could not confirm something.
-> - You may run: <check commands, with any setup they need>. Scratch files go in
->   /tmp, never the repo.
+> - Do NOT run the full repo test suite during diagnosis (parallel subagents running
+>   full-repo, database, or browser suites contend on shared resources and stall).
+>   Only run fast, targeted single-test or package type/compile checks (`go vet`,
+>   `go test -run TestSpecific`, syntax check) when needed to prove a `CONFIRMED`
+>   defect; the parent agent runs the full check suite in §5 after fixes. Scratch
+>   files go in /tmp, never the repo.
 > - Do not ask a follow-up question — your final message is the report.
 
 Then the per-lens body. **Keep Lenses 1, 4, and 5 non-overlapping so each finding
@@ -144,7 +148,7 @@ If the per-repo lens block names this codebase's failure classes, brief them
 verbatim as the primary focus: they are the bugs this repo has actually shipped,
 and a hazard list earned that way beats anything derived from the stack.
 
-Whether or not it does, also apply the four checks that hold in any codebase:
+Whether or not it does, also apply the five checks that hold in any codebase:
 
 - **Authorization on every new or changed entry point** — a route, a handler, a
   command, an RPC, a message consumer. Find the mechanism this repo uses and confirm
@@ -158,6 +162,11 @@ Whether or not it does, also apply the four checks that hold in any codebase:
 - **Anything crossing a trust boundary** — request bodies, wire frames, files,
   environment — reaching storage, a template, a shell or an index unvalidated or
   unbounded.
+- **Generalization and shared-contract assumptions** — when a helper, query,
+  selector, or handler is generalized across multiple callers or templates, verify
+  that every target actually matches the assumed structure (e.g., root element vs.
+  descendant in DOM queries, hidden input vs. interactive control, zero/empty value
+  vs. omitted value).
 - **Every invariant a new comment, docstring or test name claims.** Trace it. A
   claim about ordering, lifetime, or "always/never" is a hypothesis until the code
   proves it.
@@ -233,10 +242,15 @@ one, but hold it to the same bar below: one line where one line will do.
 > **Then fact-check every surviving comment that asserts a mechanism.** A false
 > comment is worse than none. For each comment claiming something about ordering,
 > lifetime, who calls what, what fires when, what a guard admits or prevents, or
-> what is guaranteed — trace it in the source and verify it is true. Report FALSE
-> and OVERCLAIMING comments FIRST, as their own findings, with the `file:line`
-> evidence showing what the code really does. Check especially for a correct
-> statement of the same fact elsewhere in the branch that the comment contradicts.
+> what is guaranteed — trace it in the source and verify it is true. Also
+> fact-check identifiers whose bodies or uses changed in the diff: a function,
+> field, or variable whose name contradicts its actual behavior, polarity, unit,
+> type, or scope (e.g., a helper still named for a single caller after being
+> generalized to all callers) is a FALSE claim in identifier clothing. Report
+> FALSE and OVERCLAIMING comments (and disinforming identifiers) FIRST, as their
+> own findings, with the `file:line` evidence showing what the code really does.
+> Check especially for a correct statement of the same fact elsewhere in the
+> branch that the comment contradicts.
 
 > **Parity claims need both sides' USE, not both sides' value.** A comment saying
 > the new code reproduces what the old code did — "X's own defaults", "the same
@@ -270,8 +284,9 @@ targeted grep — but do not start fixing.
 
 ## 4. Ledger the findings BEFORE fixing anything
 
-Write every finding from all six reports into `docs/lens-ledger-<branch-or-issue>.md`
-(or wherever this repo keeps review notes, if `CLAUDE.md` says) in one pass, before
+Write every finding from all six reports into `/tmp/lens-ledger-<branch-or-issue>.md`
+(or into the repo's review-notes directory only if `CLAUDE.md` explicitly names one,
+so the working tree stays clean) in one pass, before
 the first edit. One row per finding: number, which lenses raised it, a one-line
 statement, `file:line`, and a disposition that must be exactly one of
 
@@ -349,9 +364,12 @@ data structures/files:
 3. **Lens 6 (`fixing-comments`)** — audits comments written or modified during the
    fix pass and fact-checks untouched docstrings above newly modified functions.
 
-Brief all three with the full branch range (`$BASE..HEAD`) plus the list of files
+Brief all three with the full branch range (`$BASE..HEAD`), the list of files
 modified since the previous ledger so they focus on what changed in Round N while
-still seeing the full branch context. Write their findings to a new round ledger
-(`docs/lens-ledger-<branch-or-issue>-r2.md`, `-r3.md`, …) and apply the same
+still seeing the full branch context, and a compact summary of prior rounds'
+`REJECTED-<citation>` items (*"Already verified and rejected in earlier rounds — do
+not re-report unless new edits invalidated the citation: ..."*) so follow-up agents
+do not re-litigate settled design trade-offs. Write their findings to a new round
+ledger (`/tmp/lens-ledger-<branch-or-issue>-r2.md`, `-r3.md`, …) and apply the same
 disposition and falsification discipline. If a round's fixes moved state across
 packages or introduced new types/files, run all six lenses.
