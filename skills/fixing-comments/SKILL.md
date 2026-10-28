@@ -66,6 +66,7 @@ A false comment is worse than none. Before keeping or compressing any comment th
 1. **Mechanism claims** — ordering, lifetime, who calls what, what fires when, what a guard admits or prevents, or what is guaranteed: trace the source and verify it holds. Check especially for a statement of the same fact elsewhere in the codebase that the comment contradicts, and **always fact-check untouched docstrings or comments immediately attached to a function, struct, method, or template whose body changed in the diff** (editing an implementation frequently invalidates the untouched doc comment right above it).
 2. **Parity claims** — a comment saying new code reproduces old code ("X's own defaults", "the same timings", "reproduces what Y did") is verified only when you have read how *each* implementation consumes the value, not just that the numbers match. Equal constants are not equal behavior. Reading the declaration on one side and the use on the other, then inferring equivalence across the gap, is OVERCLAIMING.
 3. **Disinforming identifiers (names that lie)** — a function, method, field, or variable whose name contradicts its actual behavior, polarity, unit, type, or scope (especially an untouched name whose body was generalized or repurposed in the diff, or a name encoding the wrong unit or container type) is a FALSE comment in identifier clothing. Report it alongside FALSE comments with `file:line` evidence.
+4. **The change's own description**: a PR description or the summary about to be posted makes the same kinds of claims (what the change does, what the old code did, what a test guarantees) and is read by whoever decides to merge. Fact-check it like a comment: trace each claim, and report FALSE and OVERCLAIMING ones with the `file:line` that contradicts them. "Before" claims need the base branch's code, not the author's memory of it.
 
 ## Workflow when invoked as cleanup or review
 
@@ -73,7 +74,8 @@ A false comment is worse than none. Before keeping or compressing any comment th
 2. **Ignore pure whitespace or column-alignment changes (`git diff -w`) on pre-existing comments whose underlying code did not change** (for example, `gofmt` or a formatter re-aligning neighboring struct field or `const` comments when a new field is added). Do not create unrelated diff churn on untouched code's comments.
 3. Judge each added/modified comment — plus any untouched docstring or comment attached to a modified function, struct, method, or template — for necessity first (DELETE vs survive), then compress survivors to 1–2 lines, then fact-check every mechanism and parity claim on what remains.
 4. Watch for the adjacent fix: a comment that exists only because a name is bad, or an identifier whose name contradicts what its code actually does after a change — rename the thing instead of annotating it (mention it under FALSE if scope is comment-only).
-5. Report FALSE and OVERCLAIMING comments first with `file:line` evidence, then DELETE / COMPRESS / KEEP counts (DELETE first), and flag any file where comment lines added outnumber code lines added.
+5. If the change has a description (a PR body, or a summary handed to you), fact-check its claims the same way.
+6. Report FALSE and OVERCLAIMING comments (and description claims) first with `file:line` evidence, then DELETE / COMPRESS / KEEP counts (DELETE first), and flag any file where comment lines added outnumber code lines added.
 
 ## Common Mistakes
 
