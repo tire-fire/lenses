@@ -1,12 +1,12 @@
 ---
-description: Run six independent review lenses as fresh-context subagents against a branch diff, then ledger every finding before fixing
+description: Run seven independent review lenses as fresh-context subagents against a branch diff, then ledger every finding before fixing
 argument-hint: "[base-ref | range] [--followup] (default: upstream base of the current branch)"
 ---
 
-Run the six review lenses against `$ARGUMENTS` (or the default range below) as six
+Run the seven review lenses against `$ARGUMENTS` (or the default range below) as seven
 independent subagents, each with a fresh context. When `$ARGUMENTS` includes
 `--followup` (or `followup`), or when re-running after applying a round's ledger
-fixes (Round 2+), run the focused 3-lens follow-up pass unless the fixes reshaped
+fixes (Round 2+), run the focused follow-up pass unless the fixes reshaped
 cross-package architecture or data structures (see §6).
 
 ## 1. Resolve the range and the repo profile first, and say what they are
@@ -55,16 +55,17 @@ if you cannot find one, say so in the preamble rather than inventing it.
 5. **The per-repo lens block** — a `## Review lenses` section in `CLAUDE.md`, if
    present. It holds what cannot be derived from the tree: the failure classes this
    codebase has actually shipped (for lens 3), where its design vocabulary lives
-   (for lens 4), and any comment or docstring form a lint rule requires (for lens
-   6). Quote each part verbatim into the matching lens brief. When the section is
+   (for lens 4), any comment or docstring form a lint rule requires (for lens 6),
+   and any repo-specific trust boundaries or privilege invariants (for lens 7).
+   Quote each part verbatim into the matching lens brief. When the section is
    absent, each lens falls back to the stack-neutral brief below; say that too.
 
 Print the resolved range, the commits in it, and the profile before launching
 anything.
 
-## 2. Launch all six in ONE message
+## 2. Launch all seven in ONE message
 
-Six `Agent` calls with `subagent_type: general-purpose`, all in a single message so
+Seven `Agent` calls with `subagent_type: general-purpose`, all in a single message so
 they run concurrently. Do **not** invoke the skills inline in your own context —
 the whole point is that each lens reads the diff without your reasoning attached to
 it. Do not run any of them yourself while they work.
@@ -92,13 +93,20 @@ Give every agent this common preamble, substituting the resolved range and profi
 >   files go in /tmp, never the repo.
 > - Do not ask a follow-up question — your final message is the report.
 
-Then the per-lens body. **Keep Lenses 1, 4, and 5 non-overlapping so each finding
-is owned by one lens rather than reported three times in different vocabulary:**
+Then the per-lens body. **Keep Lenses 1, 4, and 5 non-overlapping on structure, and
+Lenses 3 and 7 non-overlapping on correctness vs. security, so each finding is owned
+by one lens rather than reported multiple times in different vocabulary:**
 - **Lens 1 (`ripoff-bandaids`)** owns *intra-unit control flow & mechanism*:
   sleeps/polling/watchdogs/retry-loops, dead state transitions, defensive guards
   masking a local root cause, shallow pass-through wrappers, and near-duplicate
   functions within a module. Defer data-type/representation changes to Lens 4 and
   cross-package state ownership or layer coupling to Lens 5.
+- **Lens 3 (`correctness`)** owns *functional, state-machine, and concurrency
+  correctness*: atomicity/locking/ordering, callback/timer lifetimes,
+  generalization and shared-contract assumptions across callers/templates, claimed
+  invariants, and production reachability. Defer authorization, trust-boundary input
+  validation, injection/traversal sinks, secret exposure, and asymmetric DoS to
+  Lens 7 (`security`).
 - **Lens 4 (`latent-design-review`)** owns *data representation & canonical/internal
   design analogies*: replacing flag clusters or parallel structures with a better
   type/table/sum type, or unifying a hand-rolled mechanism onto an existing repo or
@@ -107,6 +115,10 @@ is owned by one lens rather than reported three times in different vocabulary:**
 - **Lens 5 (`architecture-doctrine`)** owns *cross-unit structural boundaries and
   single source of truth* (the six axes: ownership, authority, layer separation,
   truth propagation, minimum scope, coupling quality).
+- **Lens 7 (`security`)** owns *adversarial security & trust boundaries*:
+  authentication, entry-point and object-level authorization (IDOR / confused
+  deputy), CSRF and redirect safety, untrusted source-to-sink injection/traversal,
+  secret/credential/token handling, and asymmetric resource exhaustion.
 
 **1. ripoff-bandaids** — invoke the `lenses:ripoff-bandaids` skill first. Focus on
 intra-unit control flow and local mechanisms (timing loops, dead transitions,
@@ -143,31 +155,28 @@ verify that any proposed `shrink:` preserves exact behavior across all callers.
 Tests are not bloat — never flag a check for deletion. End with
 `net: -<N> lines possible.` or `Lean already. Ship.`
 
-**3. correctness** — no skill; do a rigorous correctness review.
+**3. correctness** — no skill; do a rigorous functional and concurrency correctness
+review (defer authorization, trust-boundary inputs, injection, and secret handling
+to Lens 7 `security`).
 
 If the per-repo lens block names this codebase's failure classes, brief them
 verbatim as the primary focus: they are the bugs this repo has actually shipped,
 and a hazard list earned that way beats anything derived from the stack.
 
-Whether or not it does, also apply the five checks that hold in any codebase:
+Whether or not it does, also apply the checks that hold in any codebase:
 
-- **Authorization on every new or changed entry point** — a route, a handler, a
-  command, an RPC, a message consumer. Find the mechanism this repo uses and confirm
-  the new entry point carries it, and that a failure yields the same response shape
-  its siblings give (not a redirect where siblings return 403, not a stack trace
-  where siblings return an error frame).
 - **Atomicity and ordering** — read-then-write on state another process, thread,
   task or callback also touches; a lock, transaction or single-writer rule the
   siblings honor that the new code skips; callbacks or timers that can fire after
   the object they capture is gone or reset.
-- **Anything crossing a trust boundary** — request bodies, wire frames, files,
-  environment — reaching storage, a template, a shell or an index unvalidated or
-  unbounded.
 - **Generalization and shared-contract assumptions** — when a helper, query,
   selector, or handler is generalized across multiple callers or templates, verify
   that every target actually matches the assumed structure (e.g., root element vs.
   descendant in DOM queries, hidden input vs. interactive control, zero/empty value
   vs. omitted value).
+- **Boundary, error-propagation, and partial-failure paths** — nil/empty/zero inputs,
+  partial writes or half-completed multi-step operations, swallowed errors, or
+  cleanup/rollback paths that leave state wedged.
 - **Every invariant a new comment, docstring or test name claims.** Trace it. A
   claim about ordering, lifetime, or "always/never" is a hypothesis until the code
   proves it.
@@ -286,6 +295,57 @@ one, but hold it to the same bar below: one line where one line will do.
 Then the DELETE / COMPRESS / KEEP pass with counts, DELETE first. A KEEP needs
 the one non-obvious fact the comment carries; if you cannot name it, it is DELETE.
 
+**7. security** — no skill; do an adversarial security and trust-boundary review
+(defer non-security functional/concurrency edge cases to Lens 3 `correctness`).
+
+If the per-repo lens block names this codebase's trust boundaries or privilege
+invariants, brief them verbatim as the primary focus. Whether or not it does, trace
+every new or modified path across these five security surfaces:
+
+- **Entry-point & object-level authorization (IDOR / confused deputy)** — for every
+  new or changed route, handler, RPC, CLI command, or message consumer: confirm it
+  enforces the repo's authentication and privilege checks, verifies the caller is
+  authorized for the *specific* target resource/team/tenant/pool in the request (not
+  merely signed in), executes downstream actions with the right principal's
+  credential rather than a privileged service credential by mistake, and fails
+  closed with the same response shape its siblings give (not a redirect where
+  siblings return 403, not a stack trace where siblings return an error frame).
+- **State-changing request integrity & redirect safety** — confirm state-changing
+  operations use safe methods (`POST`/`PUT`/`DELETE`, never `GET`), enforce CSRF or
+  origin checks consistent with sibling handlers, and validate any redirect target
+  (`next`, `return_to`, `redirect`) against open redirects (including
+  scheme-relative `//`, backslash `\/`, and control characters).
+- **Untrusted source-to-sink injection & traversal** — trace attacker- or
+  peer-controlled inputs (query params, request bodies, headers, wire frames,
+  external API/DB records, filenames, environment) to every sink:
+  - HTML/JS/DOM sinks (`template.HTML`, `innerHTML`, `insertAdjacentHTML`,
+    `javascript:`/`data:` URLs).
+  - Subprocess & CLI sinks (`exec.Command` shell invocation, or positional arguments
+    that can start with `-` passed without `--` flag termination).
+  - Filesystem & archive sinks (`filepath.Join`, symlink or `..` traversal outside
+    the intended root).
+  - Query, SSRF & header sinks (SQL, outbound HTTP URLs/hosts, response header /
+    log injection).
+- **Secret, credential & token handling** — confirm tickets, API tokens, session
+  cookies, private keys, or sealed blobs never leak into log lines, error pages,
+  SSE/WebSocket broadcasts, URL query strings, or serialized responses; check that
+  secret/MAC comparisons are constant-time and crypto/sealing nonces and AAD/context
+  domains cannot be replayed across contexts.
+- **Asymmetric resource exhaustion (DoS)** — unbounded `io.ReadAll`, unbounded
+  slice/map/goroutine allocation per request, locks or DB transactions held across
+  external network calls, or expensive work reachable before authentication.
+
+> **Strict anti-noise bar:** Every finding must trace a concrete **untrusted source
+> → code path → sink / security impact** in the actual source (`file:line`), after
+> verifying that the input is not already validated, escaped, or gated upstream. Do
+> not report generic OWASP checklists, hypothetical threat models, or defense-in-depth
+> wishes on already-trusted internal values.
+
+Report each finding as: one-sentence vulnerability, concrete exploit scenario
+(attacker capability + input/state → security impact), `file:line`, and CONFIRMED
+(traced end-to-end or reproduced) vs PLAUSIBLE. Most severe first. If nothing real,
+say so rather than padding.
+
 ## 3. While they run
 
 Hold all edits until every lens has reported. Do not edit files the agents are
@@ -294,7 +354,7 @@ targeted grep — but do not start fixing.
 
 ## 4. Ledger the findings BEFORE fixing anything
 
-Write every finding from all six reports into `/tmp/lens-ledger-<branch-or-issue>.md`
+Write every finding from all seven reports into `/tmp/lens-ledger-<branch-or-issue>.md`
 (or into the repo's review-notes directory only if `CLAUDE.md` explicitly names one,
 so the working tree stays clean) in one pass, before
 the first edit. One row per finding: number, which lenses raised it, a one-line
@@ -361,11 +421,11 @@ This step exists because skipping it fails the same four ways every time:
 
 ## 6. Follow-up rounds (Round 2+ / `--followup`)
 
-Round 1 always runs all six lenses against the full branch diff. When re-running
+Round 1 always runs all seven lenses against the full branch diff. When re-running
 after applying a round's ledger fixes (or when invoked with `--followup` /
-`followup`), launch a focused **3-lens follow-up pass** in one message instead of
-all six, unless the fixes reshaped cross-package architecture or introduced new
-data structures/files:
+`followup`), launch a focused follow-up pass in one message instead of all seven,
+unless the fixes reshaped cross-package architecture or introduced new data
+structures/files:
 
 1. **Lens 1 (`ripoff-bandaids`)** — hunts leftover transition scaffolding, dead
    branches, or band-aid guards introduced while applying the previous round's
@@ -374,16 +434,20 @@ data structures/files:
    edge cases introduced by the fixes.
 3. **Lens 6 (`fixing-comments`)** — audits comments written or modified during the
    fix pass and fact-checks untouched docstrings above newly modified functions.
+4. **Lens 7 (`security`)** *(include whenever the round's fixes touched auth,
+   routes/handlers, input validation, templates/DOM, subprocess/storage/network
+   calls, or credentials; omit on pure comment, CSS, or internal refactor fixes)* —
+   hunts auth, injection, or secret-handling regressions introduced by the fixes.
 
-Brief all three with the full branch range (`$BASE..HEAD`), the list of files
-modified since the previous ledger so they focus on what changed in Round N while
-still seeing the full branch context, and a compact summary of prior rounds'
+Brief the follow-up lenses with the full branch range (`$BASE..HEAD`), the list of
+files modified since the previous ledger so they focus on what changed in Round N
+while still seeing the full branch context, and a compact summary of prior rounds'
 `REJECTED-<citation>` items (*"Already verified and rejected in earlier rounds — do
 not re-report unless new edits invalidated the citation: ..."*) so follow-up agents
 do not re-litigate settled design trade-offs. Write their findings to a new round
 ledger (`/tmp/lens-ledger-<branch-or-issue>-r2.md`, `-r3.md`, …) and apply the same
 disposition and falsification discipline. If a round's fixes moved state across
-packages or introduced new types/files, run all six lenses.
+packages or introduced new types/files, run all seven lenses.
 
 **A follow-up is required whenever the fixes changed behavior or structure.** The
 only fixes that may skip it are ones that changed nothing but comments, names,

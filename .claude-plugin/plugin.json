@@ -1,12 +1,12 @@
 {
   "name": "lenses",
-  "version": "1.0.0",
-  "description": "Six independent review lenses run as fresh-context subagents against a branch diff, with every finding ledgered before the first fix.",
+  "version": "1.1.0",
+  "description": "Seven independent review lenses run as fresh-context subagents against a branch diff, with every finding ledgered before the first fix.",
   "author": {
     "name": "Tirefire",
     "url": "https://github.com/tire-fire"
   },
   "repository": "https://github.com/tire-fire/lenses",
   "license": "MIT",
-  "keywords": ["code-review", "subagents", "simplification", "architecture", "comments"]
+  "keywords": ["code-review", "subagents", "simplification", "architecture", "comments", "security"]
 }
