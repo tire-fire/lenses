@@ -35,9 +35,10 @@ section in `ARCHITECTURE.md`, `CONTEXT.md`, or `CLAUDE.md`.
   documented design boundary on a PR unless the diff itself breaks the stated condition.
 - **When absent or stale (`THREAT_MODEL_DRIFT`):** Still run the full five-surface
   differential review below, and if the diff adds or modifies an entry point, authentication
-  or permission gate, credential delegation path, secret/key, or external sink that is not
-  covered by the repo's threat model, report a `THREAT_MODEL_DRIFT` finding naming the
-  exact boundary or invariant the orchestrator should record.
+  or permission gate, credential delegation path, secret/key, external sink, or build/deploy
+  path that is not covered by the repo's threat model (or if the repo's threat model is
+  missing any of the eight elements in §2), report a `THREAT_MODEL_DRIFT` finding naming the
+  exact boundary, threat/mitigation, or section the orchestrator should record.
 
 ---
 
@@ -48,34 +49,19 @@ When invoked to create or update a repository's threat model (or when resolving 
 (or the `## Threat model` section in `ARCHITECTURE.md` if the repo keeps a single design
 doc).
 
-Keep it **40–100 lines, concrete, and code-cited** — never compliance boilerplate:
+Keep it **concise, concrete, and code-cited** — never compliance boilerplate. An ideal
+threat model has these eight elements:
 
-1. **Principals & Credential Delegation**
-   - Every actor that interacts with the system (unauthenticated client, signed-in user,
-     operator/admin, background worker, peer node, webhook caller).
-   - **Whose credentials execute downstream calls** (e.g., per-user delegated ticket/token
-     vs. service account) and where privilege escalation or confused-deputy boundaries sit.
-2. **Trust Boundaries & Entry Points**
-   - Every surface where untrusted or semi-trusted bytes cross into the process: HTTP
-     routes/forms, WebSocket/SSE streams, OIDC/OAuth callbacks, upstream API/node
-     responses, persisted DB rows, CLI flags, or wire frames — and the gate that
-     authenticates and validates each one.
-3. **Crown-Jewel Assets & Secret Invariants**
-   - Session cookies, tickets, API tokens, private keys, encryption/sealing keys, and
-     sealed DB columns.
-   - Where each secret lives, how it is sealed/compared (e.g., AEAD nonce/AAD domain,
-     constant-time MAC check), and where it must **never** appear (logs, URL query
-     strings, HTML/DOM attributes, SSE broadcasts, error strings).
-4. **Security-Critical Invariants & Sharp Edges**
-   - Repo-specific rules that future diffs must not break (e.g., *"Every state-changing
-     route uses `POST` and enforces Origin/CSRF"*, *"A `nil` or empty permission checker
-     fails closed outside explicitly named test fakes"*, *"User-influenced arguments to
-     `exec.Command` or SSH commands must be validated or follow `--`"*).
-5. **Explicit Non-Goals & Accepted Risks**
-   - Threats that are intentionally out of scope (e.g., *"An attacker with root SSH on
-     the Proxmox node already owns the host"*, *"No local user/role table; upstream
-     Proxmox ACLs are the sole authority"*) so reviewers focus on real bugs rather than
-     relitigating the architecture.
+| An ideal threat model has | What to record (with `file:line` citations) |
+|---|---|
+| **1. Attackers and their goals** | Who you defend against (unauthenticated internet client, signed-in user/volunteer, compromised guest VM, external IdP/API peer, co-tenant) and what each wants, plus whose credentials execute downstream calls (delegated user token vs. service account). |
+| **2. Assets ranked by impact** | What is worst to lose, ordered by blast radius: crown-jewel secrets/keys, user credentials/tickets, cluster/infrastructure control, tenant/team isolation, audit integrity, availability — and where each secret lives, how it is sealed (`nonce`/AAD domain), and where it must **never** appear (logs, URLs, DOM, SSE, error strings). |
+| **3. Trust boundaries and data flows** | Every boundary where untrusted or semi-trusted bytes cross between principals or privilege zones (browser ↔ reverse proxy ↔ web server ↔ worker ↔ DB ↔ external control plane / guest agent), **ideally as an ASCII or Mermaid diagram** paired with the entry-point gates. |
+| **4. Threats per boundary (STRIDE)** | Concrete threats at each boundary — often organized by **STRIDE** (**S**poofing, **T**ampering, **R**epudiation, **I**nformation disclosure, **D**enial of service, **E**levation of privilege) — plus repo-specific sharp edges (e.g., test-only fallbacks that must never fire in prod). |
+| **5. Mitigations, each tied to a threat** | The specific code gate, cryptographic binding, query/parameter check, or isolation mechanism (`file:line`) that neutralizes each threat, rather than a disconnected list of controls. |
+| **6. Accepted risks and non-goals** | Threats intentionally out of scope and why (e.g., *"Shared lab guest credentials in VM notes across signed-in volunteers"*, *"Compromised Proxmox/IdP control plane"*), so reviewers focus on real bugs instead of relitigating the architecture. |
+| **7. Build and deploy path** | How code becomes running software: CI checks (`govulncheck`, tests, pinned action SHAs), image signing/publishing, secret injection, and CD/rollout authority (e.g., GitHub Actions → GHCR → Argo CD manifest pin). |
+| **8. Owner and review trigger** | Who owns the threat model and the explicit triggers that require updating it in the same PR (any new/changed route, auth/permission gate, credential delegation path, secret/sealing purpose, external sink, or CI/CD deploy step). |
 
 ---
 

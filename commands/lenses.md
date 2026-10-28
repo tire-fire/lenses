@@ -422,9 +422,13 @@ This step exists because skipping it fails the same four ways every time:
   number, or an ASKED row that survives into the next turn.
 - **Keep the threat model in sync when fixing `THREAT_MODEL_DRIFT`.** When Lens 7
   reports `THREAT_MODEL_DRIFT` (a new entry point, trust boundary, credential
-  delegation path, secret, or external sink not reflected in `THREAT_MODEL.md` or
-  `ARCHITECTURE.md`), update or bootstrap that threat-model section alongside the
-  code fixes using the compact, code-cited structure in `lenses:security`.
+  delegation path, secret, external sink, or build/deploy step not reflected in
+  `THREAT_MODEL.md` or `ARCHITECTURE.md`, or a missing section of the eight-element
+  structure), update or bootstrap that threat-model document alongside the code
+  fixes using the eight-element, code-cited structure in `lenses:security`
+  (attackers & goals, assets ranked by impact, trust boundaries & data-flow
+  diagram, threats per boundary / STRIDE, mitigations tied to threats, accepted
+  risks & non-goals, build & deploy path, owner & review trigger).
 - **Re-run the lenses after a round of fixes, not before a push.** Every report
   predates the fixes applied from it, so a second round reviews code nothing has
   seen. Expect the largest category in round N+1 to be comments written in round N;
