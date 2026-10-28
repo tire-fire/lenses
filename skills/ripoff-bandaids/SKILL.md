@@ -7,6 +7,12 @@ description: Use when the user wants to simplify a codebase, remove accidental c
 
 Find accidental complexity and propose removing it — so the code does what it's actually trying to do, directly, with less. Reducing code is the *consequence* of elegance, not the goal. This is advisory: you diagnose and propose, the human decides.
 
+## Scope boundary (when run alongside the other review lenses)
+
+This skill owns **intra-unit / local control-flow and mechanism simplification**: sleeps/polling/watchdogs/retry-loops, dead state transitions, defensive guards masking a local root cause, shallow pass-through wrappers, and near-duplicate functions within a module.
+- Defer **data representation & canonical/internal design analogies** (replacing flag clusters or parallel structures with a sum type, table, or value type; unifying a hand-rolled mechanism onto an existing repo abstraction) to `latent-design-review`.
+- Defer **cross-unit/cross-layer structural boundaries and single source of truth** (where state lives across layers, who owns a fact, layer direction, truth propagation, coupling across module boundaries) to `architecture-doctrine`.
+
 ## Your own bias is the thing to fight
 
 You default to *adding*. Faced with a problem you reach for one more guard, one more sleep, one more wrapper, one more flag — because additive ideas are faster to retrieve, not because they're better. This is a measured cognitive default in both people and LLMs, and it gets *worse* under load. A band-aid on a band-aid is what that bias produces over time.

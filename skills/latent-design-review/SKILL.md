@@ -41,6 +41,14 @@ dead-code scanner could have found it, it is out of scope here.
 When you catch yourself writing a finding from the left column, stop. That is the
 baseline an agent produces without this skill. Raise altitude or drop it.
 
+**Boundary with sibling review lenses:** This skill owns **data representation**
+(sum types, tables, value types replacing parallel structures or flag clusters) and
+**canonical/internal design analogies** (unifying a hand-rolled mechanism onto an
+existing repo or textbook abstraction). Defer local control-flow band-aids, timing
+loops, and dead state transitions within a unit to `ripoff-bandaids`, and defer
+cross-unit/cross-layer state ownership, authority, and boundary coupling to
+`architecture-doctrine`.
+
 ## Audit HEAD, not the diff
 
 The diff against the merge-base only *focuses attention*. A finding must describe
