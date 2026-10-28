@@ -111,7 +111,8 @@ is owned by one lens rather than reported three times in different vocabulary:**
 **1. ripoff-bandaids** — invoke the `lenses:ripoff-bandaids` skill first. Focus on
 intra-unit control flow and local mechanisms (timing loops, dead transitions,
 defensive guards masking a local root cause, shallow wrappers, near-duplicate
-functions); defer representation/type changes to Lens 4 and cross-unit ownership or
+functions, the same wrapper repeated at every site with a guard test checking it is
+there); defer representation/type changes to Lens 4 and cross-unit ownership or
 layer boundaries to Lens 5. Rank findings by complexity removed; give intent, the
 band-aid and its catalog pattern, the direct alternative, verification, and
 strength. Apply the load-bearing / Chesterton's-fence check to every removal
@@ -273,6 +274,15 @@ one, but hold it to the same bar below: one line where one line will do.
 > cited the declaration and the new use, called the roles identical, and never
 > opened the old use.
 
+> **Fact-check the change's own description too.** When the branch has a PR (`gh pr
+> view --json body`), or the orchestrator gives you the description it will post,
+> trace every claim in it the same way: what the change does, what the old code
+> did, what a test guarantees. A description is read by the person deciding whether
+> to merge, and it is written by the same author whose comments you are checking;
+> it overclaims the same way, and a false "before" column misleads as badly as a
+> false comment. Report its FALSE and OVERCLAIMING claims with the `file:line` that
+> contradicts each.
+
 Then the DELETE / COMPRESS / KEEP pass with counts, DELETE first. A KEEP needs
 the one non-obvious fact the comment carries; if you cannot name it, it is DELETE.
 
@@ -342,7 +352,8 @@ This step exists because skipping it fails the same four ways every time:
 - **Re-run the lenses after a round of fixes, not before a push.** Every report
   predates the fixes applied from it, so a second round reviews code nothing has
   seen. Expect the largest category in round N+1 to be comments written in round N;
-  that has held every time so far. See §6 for the focused follow-up pass.
+  that has held every time so far. See §6 for when a follow-up is required and when
+  to stop.
 - After fixing: re-run every check command from the profile. **Falsify every test
   you added or changed** by reverting its mechanism and confirming it fails; a test
   that passes with the mechanism gone is worthless. Check the falsification grep
@@ -373,3 +384,18 @@ do not re-litigate settled design trade-offs. Write their findings to a new roun
 ledger (`/tmp/lens-ledger-<branch-or-issue>-r2.md`, `-r3.md`, …) and apply the same
 disposition and falsification discipline. If a round's fixes moved state across
 packages or introduced new types/files, run all six lenses.
+
+**A follow-up is required whenever the fixes changed behavior or structure.** The
+only fixes that may skip it are ones that changed nothing but comments, names,
+wording or tests. Pressure to go faster is not a reason to skip: a fix that reshapes
+code (a new helper, a changed signature, an error path moved to another layer) is
+code no lens has read, and it is where the next round's real findings come from. If
+you skip a follow-up, say so to the person you are handing the change to, and why.
+
+**Stop when a round finds nothing but names and wording.** When a follow-up's
+findings are all comment wording, identifier names or test names (no behavior, no
+structure, no false mechanism claim), apply them, run the checks, and stop: do not
+launch another round to review those edits. Rounds after that point cost minutes
+each and return wording about the previous round's wording. A follow-up that finds
+a behavior or structure problem keeps the loop going; one that finds only phrasing
+ends it.

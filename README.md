@@ -68,7 +68,9 @@ Then, in any repo:
    `correctness`, `fixing-comments`) after applying a round's ledger fixes, hunting
    fix-induced regressions, leftover transition scaffolding, and newly written or
    invalidated comments (unless the fixes reshaped cross-package architecture or
-   introduced new types/files, in which case all six lenses run again).
+   introduced new types/files, in which case all six lenses run again). A follow-up
+   is required whenever the fixes changed behavior or structure, and the loop stops
+   once a round finds only names and wording.
 
 ## Making it sharp for your repo
 
