@@ -15,7 +15,7 @@ what stops single-lens findings from evaporating.
 | # | Lens | Question it asks | Skill |
 |---|------|------------------|-------|
 | 1 | ripoff-bandaids | What intra-unit accidental complexity (timing loops, dead transitions, local band-aid guards, shallow wrappers) can be removed so the code does its job directly? | bundled |
-| 2 | scope | For each file in the diff: what breaks in the shipping product if this file's changes are dropped? Then, what is provably dead or unused bloat? | ponytail-review (bundled, MIT, by Dietrich Gebert) |
+| 2 | scope | For each file in the diff: what breaks in the shipping product if this file's changes are dropped? Then, what is bloat? | ponytail-review (bundled, MIT, by Dietrich Gebert) |
 | 3 | correctness | Where does this break, and can each new code path actually fire in the shipping build? | none |
 | 4 | latent-design-review | What data representation or canonical/internal repo abstraction is this code secretly trying to be, and what structure disappears if it becomes that? | bundled |
 | 5 | architecture-doctrine | Across units and layers, is each fact stored where its decision is made, and what single change would force both sides of a boundary to move? | bundled |

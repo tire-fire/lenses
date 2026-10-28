@@ -126,22 +126,15 @@ tracing consumers, not by reading the code's stated purpose. A file whose only
 consumers are its own tests fails this — production code whose sole justification
 is that it is tested is a model built to be asserted on, not a behavior anyone
 depends on. So does a file that changes no observable behavior (a rename sweep, a
-reformat) and rode along because lint fired on touch. (When synthesizing later,
-files explicitly requested by the user — such as regenerated screenshots or docs —
-or required by an existing test are rejected with citation in the ledger rather
-than treated as scope creep.)
+reformat) and rode along because lint fired on touch.
 
 Report each such file as its own finding: the file, who its real consumers are,
 and what a reader would wrongly conclude from its presence in this change. Do not
 soften these into "worth exploring" — either something breaks or nothing does.
 
-Then the ordinary leanness pass. One line per finding. Restrict findings to
-provably dead/unused code, single-caller wrappers that hide no decision, unneeded
-dependencies, and stdlib replacements. Confirm anything called
-dead/unused/duplicated with a grep across the production roots and cite it. Before
-proposing deleting state or mutating a shared struct or slice for line-count
-savings, trace all cross-package readers and consumers (including database, JSON,
-and template consumers); never propose state-machine rewrites just to shave lines.
+Then the ordinary leanness pass. One line per finding. Confirm anything called
+dead/unused/duplicated with a grep across the production roots and cite it, and
+verify that any proposed `shrink:` preserves exact behavior across all callers.
 Tests are not bloat — never flag a check for deletion. End with
 `net: -<N> lines possible.` or `Lean already. Ship.`
 
