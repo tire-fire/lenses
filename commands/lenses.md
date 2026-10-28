@@ -1,10 +1,13 @@
 ---
 description: Run six independent review lenses as fresh-context subagents against a branch diff, then ledger every finding before fixing
-argument-hint: "[base-ref | range] (default: upstream base of the current branch)"
+argument-hint: "[base-ref | range] [--followup] (default: upstream base of the current branch)"
 ---
 
 Run the six review lenses against `$ARGUMENTS` (or the default range below) as six
-independent subagents, each with a fresh context.
+independent subagents, each with a fresh context. When `$ARGUMENTS` includes
+`--followup` (or `followup`), or when re-running after applying a round's ledger
+fixes (Round 2+), run the focused 3-lens follow-up pass unless the fixes reshaped
+cross-package architecture or data structures (see §6).
 
 ## 1. Resolve the range and the repo profile first, and say what they are
 
@@ -85,13 +88,30 @@ Give every agent this common preamble, substituting the resolved range and profi
 >   /tmp, never the repo.
 > - Do not ask a follow-up question — your final message is the report.
 
-Then the per-lens body:
+Then the per-lens body. **Keep Lenses 1, 4, and 5 non-overlapping so each finding
+is owned by one lens rather than reported three times in different vocabulary:**
+- **Lens 1 (`ripoff-bandaids`)** owns *intra-unit control flow & mechanism*:
+  sleeps/polling/watchdogs/retry-loops, dead state transitions, defensive guards
+  masking a local root cause, shallow pass-through wrappers, and near-duplicate
+  functions within a module. Defer data-type/representation changes to Lens 4 and
+  cross-package state ownership or layer coupling to Lens 5.
+- **Lens 4 (`latent-design-review`)** owns *data representation & canonical/internal
+  design analogies*: replacing flag clusters or parallel structures with a better
+  type/table/sum type, or unifying a hand-rolled mechanism onto an existing repo or
+  canonical abstraction. Defer local control-flow band-aids and dead transition
+  cleanup to Lens 1, and cross-layer state ownership to Lens 5.
+- **Lens 5 (`architecture-doctrine`)** owns *cross-unit structural boundaries and
+  single source of truth* (the six axes: ownership, authority, layer separation,
+  truth propagation, minimum scope, coupling quality).
 
-**1. ripoff-bandaids** — invoke the `lenses:ripoff-bandaids` skill first. Rank
-findings by complexity removed; give intent, the band-aid and its catalog pattern,
-the direct alternative, verification, and strength. Apply the load-bearing /
-Chesterton's-fence check to every removal candidate. End with one top
-recommendation.
+**1. ripoff-bandaids** — invoke the `lenses:ripoff-bandaids` skill first. Focus on
+intra-unit control flow and local mechanisms (timing loops, dead transitions,
+defensive guards masking a local root cause, shallow wrappers, near-duplicate
+functions); defer representation/type changes to Lens 4 and cross-unit ownership or
+layer boundaries to Lens 5. Rank findings by complexity removed; give intent, the
+band-aid and its catalog pattern, the direct alternative, verification, and
+strength. Apply the load-bearing / Chesterton's-fence check to every removal
+candidate. End with one top recommendation.
 
 **2. scope** — invoke the `lenses:ponytail-review` skill first, then apply it with
 scope as the primary question rather than leanness.
@@ -106,14 +126,22 @@ tracing consumers, not by reading the code's stated purpose. A file whose only
 consumers are its own tests fails this — production code whose sole justification
 is that it is tested is a model built to be asserted on, not a behavior anyone
 depends on. So does a file that changes no observable behavior (a rename sweep, a
-reformat) and rode along because lint fired on touch.
+reformat) and rode along because lint fired on touch. (When synthesizing later,
+files explicitly requested by the user — such as regenerated screenshots or docs —
+or required by an existing test are rejected with citation in the ledger rather
+than treated as scope creep.)
 
 Report each such file as its own finding: the file, who its real consumers are,
 and what a reader would wrongly conclude from its presence in this change. Do not
 soften these into "worth exploring" — either something breaks or nothing does.
 
-Then the ordinary leanness pass. One line per finding. Confirm anything called
-dead/unused/duplicated with a grep across the production roots and cite it.
+Then the ordinary leanness pass. One line per finding. Restrict findings to
+provably dead/unused code, single-caller wrappers that hide no decision, unneeded
+dependencies, and stdlib replacements. Confirm anything called
+dead/unused/duplicated with a grep across the production roots and cite it. Before
+proposing deleting state or mutating a shared struct or slice for line-count
+savings, trace all cross-package readers and consumers (including database, JSON,
+and template consumers); never propose state-machine rewrites just to shave lines.
 Tests are not bloat — never flag a check for deletion. End with
 `net: -<N> lines possible.` or `Lean already. Ship.`
 
@@ -158,10 +186,13 @@ suspected bug is encouraged. If nothing real, say so rather than padding.
 Follow its process step 1 seriously: inventory the repo's existing design
 vocabulary before hunting. If the per-repo lens block names where that vocabulary
 lives, start there; otherwise find it — the core models or types, the shared
-utilities, the module every other module imports. Audit HEAD, not the diff — a
-finding must describe an awkward shape still present with something left to
-collapse, never narrate what the branch already did well. Apply the collapse test:
-name the structure that disappears, or drop the finding.
+utilities, the module every other module imports. Focus on data representation
+(types, tables, sum types) and canonical/internal design analogies; defer local
+control-flow band-aids and dead transition cleanup to Lens 1, and cross-unit state
+ownership or layer separation to Lens 5. Audit HEAD, not the diff — a finding must
+describe an awkward shape still present with something left to collapse, never
+narrate what the branch already did well. Apply the collapse test: name the
+structure that disappears, or drop the finding.
 
 **5. architecture-doctrine** — invoke the `lenses:architecture-doctrine` skill
 first. If the repo has a doctrine document, read it and cite it, don't restate it;
@@ -171,11 +202,17 @@ latent-design to those lenses instead of forcing them through an axis. Say where
 axis yields rather than pretending it is absolute.
 
 **6. fixing-comments** — invoke the `lenses:fixing-comments` skill first, then
-apply it to every comment and docstring added or changed in range. Before
-recommending a deletion, check whether a lint rule or style hook requires that
-comment form (the per-repo lens block names any such rule; otherwise read the lint
-config) — never recommend deleting a required one, but hold it to the same bar
-below: one line where one line will do.
+apply it to every comment and docstring added or changed in range, **plus any
+untouched docstring or comment immediately attached to a function, struct, method,
+or template whose body changed in the diff** (editing an implementation frequently
+invalidates the untouched doc comment right above it). **Ignore pure whitespace or
+column-alignment changes (`git diff -w`) on pre-existing comments whose underlying
+code did not change** (e.g., `gofmt` or a formatter re-indenting neighboring struct
+field or `const` comments when a new field is added) so comment cleanup never
+creates unrelated diff churn. Before recommending a deletion, check whether a lint
+rule or style hook requires that comment form (the per-repo lens block names any
+such rule; otherwise read the lint config) — never recommend deleting a required
+one, but hold it to the same bar below: one line where one line will do.
 
 > **Silence is golden. Judge every comment for necessity first, then length.** The
 > default is no comment. A comment earns its place only by stating something a
@@ -297,8 +334,31 @@ This step exists because skipping it fails the same four ways every time:
 - **Re-run the lenses after a round of fixes, not before a push.** Every report
   predates the fixes applied from it, so a second round reviews code nothing has
   seen. Expect the largest category in round N+1 to be comments written in round N;
-  that has held every time so far.
+  that has held every time so far. See §6 for the focused follow-up pass.
 - After fixing: re-run every check command from the profile. **Falsify every test
   you added or changed** by reverting its mechanism and confirming it fails; a test
   that passes with the mechanism gone is worthless. Check the falsification grep
   actually matches the runner's output format before trusting a clean result.
+
+## 6. Follow-up rounds (Round 2+ / `--followup`)
+
+Round 1 always runs all six lenses against the full branch diff. When re-running
+after applying a round's ledger fixes (or when invoked with `--followup` /
+`followup`), launch a focused **3-lens follow-up pass** in one message instead of
+all six, unless the fixes reshaped cross-package architecture or introduced new
+data structures/files:
+
+1. **Lens 1 (`ripoff-bandaids`)** — hunts leftover transition scaffolding, dead
+   branches, or band-aid guards introduced while applying the previous round's
+   fixes.
+2. **Lens 3 (`correctness`)** — hunts regressions, ordering/locking hazards, and
+   edge cases introduced by the fixes.
+3. **Lens 6 (`fixing-comments`)** — audits comments written or modified during the
+   fix pass and fact-checks untouched docstrings above newly modified functions.
+
+Brief all three with the full branch range (`$BASE..HEAD`) plus the list of files
+modified since the previous ledger so they focus on what changed in Round N while
+still seeing the full branch context. Write their findings to a new round ledger
+(`docs/lens-ledger-<branch-or-issue>-r2.md`, `-r3.md`, …) and apply the same
+disposition and falsification discipline. If a round's fixes moved state across
+packages or introduced new types/files, run all six lenses.

@@ -14,12 +14,18 @@ what stops single-lens findings from evaporating.
 
 | # | Lens | Question it asks | Skill |
 |---|------|------------------|-------|
-| 1 | ripoff-bandaids | What accidental complexity can be removed so the code does its job directly? | bundled |
-| 2 | scope | For each file in the diff: what breaks in the shipping product if this file's changes are dropped? Then, what is bloat? | ponytail-review (bundled, MIT, by Dietrich Gebert) |
+| 1 | ripoff-bandaids | What intra-unit accidental complexity (timing loops, dead transitions, local band-aid guards, shallow wrappers) can be removed so the code does its job directly? | bundled |
+| 2 | scope | For each file in the diff: what breaks in the shipping product if this file's changes are dropped? Then, what is provably dead or unused bloat? | ponytail-review (bundled, MIT, by Dietrich Gebert) |
 | 3 | correctness | Where does this break, and can each new code path actually fire in the shipping build? | none |
-| 4 | latent-design-review | What design is this code secretly trying to be, and what structure disappears if it becomes that? | bundled |
-| 5 | architecture-doctrine | Is each fact stored where its decision is made, and what single change would force both sides of a boundary to move? | bundled |
-| 6 | fixing-comments | Is every comment that asserts a mechanism true? Then delete, compress or keep. | bundled |
+| 4 | latent-design-review | What data representation or canonical/internal repo abstraction is this code secretly trying to be, and what structure disappears if it becomes that? | bundled |
+| 5 | architecture-doctrine | Across units and layers, is each fact stored where its decision is made, and what single change would force both sides of a boundary to move? | bundled |
+| 6 | fixing-comments | Is every comment (including untouched docstrings above modified code) that asserts a mechanism true? Then delete, compress or keep (ignoring formatter-only alignment hunks). | bundled |
+
+Lenses 1, 4, and 5 have explicit non-overlapping boundaries so findings are owned by
+one lens rather than reported three times in different vocabulary: Lens 1 owns
+intra-unit control flow and local mechanisms, Lens 4 owns data representation and
+canonical/internal design analogies, and Lens 5 owns cross-unit state ownership and
+layer boundaries.
 
 Lens 2 is briefed without the commit messages on purpose. Knowing the intent makes a
 reviewer grade execution against it, which is exactly the anchor that lens exists to
@@ -38,6 +44,7 @@ Then, in any repo:
 /lenses                  # review the current branch against its upstream base
 /lenses main             # review against a base ref (merge-based automatically)
 /lenses abc123..HEAD     # review an explicit range
+/lenses --followup       # focused 3-lens follow-up pass (ripoff-bandaids, correctness, fixing-comments) after applying ledger fixes
 ```
 
 ## What the command does
@@ -57,6 +64,11 @@ Then, in any repo:
 5. **Synthesizes**: convergent findings first, single-lens findings verified before
    acting, rejections written down with a citation, and an audit of the orchestrator's
    own fix diff hunk by hunk, because the lenses only ever saw the pre-fix code.
+6. **Runs a focused 3-lens follow-up pass on Round 2+** (`ripoff-bandaids`,
+   `correctness`, `fixing-comments`) after applying a round's ledger fixes, hunting
+   fix-induced regressions, leftover transition scaffolding, and newly written or
+   invalidated comments (unless the fixes reshaped cross-package architecture or
+   introduced new types/files, in which case all six lenses run again).
 
 ## Making it sharp for your repo
 

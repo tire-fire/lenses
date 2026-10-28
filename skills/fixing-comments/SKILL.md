@@ -63,15 +63,16 @@ amount = math.floor(amount * 100) / 100
 
 A false comment is worse than none. Before keeping or compressing any comment that asserts a mechanism:
 
-1. **Mechanism claims** — ordering, lifetime, who calls what, what fires when, what a guard admits or prevents, or what is guaranteed: trace the source and verify it holds. Check especially for a statement of the same fact elsewhere in the codebase that the comment contradicts.
+1. **Mechanism claims** — ordering, lifetime, who calls what, what fires when, what a guard admits or prevents, or what is guaranteed: trace the source and verify it holds. Check especially for a statement of the same fact elsewhere in the codebase that the comment contradicts, and **always fact-check untouched docstrings or comments immediately attached to a function, struct, method, or template whose body changed in the diff** (editing an implementation frequently invalidates the untouched doc comment right above it).
 2. **Parity claims** — a comment saying new code reproduces old code ("X's own defaults", "the same timings", "reproduces what Y did") is verified only when you have read how *each* implementation consumes the value, not just that the numbers match. Equal constants are not equal behavior. Reading the declaration on one side and the use on the other, then inferring equivalence across the gap, is OVERCLAIMING.
 
 ## Workflow when invoked as cleanup or review
 
 1. Check whether a lint rule or style hook requires a comment form (e.g., public Doxygen or docstrings) — never delete a required block, but compress it to one line where one line will do.
-2. Judge each comment for necessity first (DELETE vs survive), then compress survivors to 1–2 lines, then fact-check every mechanism and parity claim on what remains.
-3. Watch for the adjacent fix: a comment that exists only because a name is bad — rename the thing instead of annotating it (mention it if scope is comment-only).
-4. Report FALSE and OVERCLAIMING comments first with `file:line` evidence, then DELETE / COMPRESS / KEEP counts (DELETE first), and flag any file where comment lines added outnumber code lines added.
+2. **Ignore pure whitespace or column-alignment changes (`git diff -w`) on pre-existing comments whose underlying code did not change** (for example, `gofmt` or a formatter re-aligning neighboring struct field or `const` comments when a new field is added). Do not create unrelated diff churn on untouched code's comments.
+3. Judge each added/modified comment — plus any untouched docstring or comment attached to a modified function, struct, method, or template — for necessity first (DELETE vs survive), then compress survivors to 1–2 lines, then fact-check every mechanism and parity claim on what remains.
+4. Watch for the adjacent fix: a comment that exists only because a name is bad — rename the thing instead of annotating it (mention it if scope is comment-only).
+5. Report FALSE and OVERCLAIMING comments first with `file:line` evidence, then DELETE / COMPRESS / KEEP counts (DELETE first), and flag any file where comment lines added outnumber code lines added.
 
 ## Common Mistakes
 
@@ -82,6 +83,8 @@ A false comment is worse than none. Before keeping or compressing any comment th
 | Leaving caller lists or call-order summaries | They rot silently the next time a caller changes. Delete them. |
 | Accepting a parity claim because the constant matches | Trace how both the old and new implementations *consume* the value |
 | Over-deleting a genuine hidden constraint because it looked short | If it encodes a quirk, workaround, or external invariant the code cannot show, KEEP one line of it |
+| Deleting or rewriting a pre-existing comment that only appeared in the diff due to formatter alignment (`git diff -w`) | Ignore whitespace-only hunks on untouched code's comments to avoid unrelated churn |
+| Skipping an untouched docstring right above a function whose body changed | Fact-check it; changing a function's behavior frequently makes its existing doc comment false |
 | Adding new explanatory comments during a cleanup pass | Cleanup removes noise; never add unless a hidden hazard is genuinely non-obvious |
 
 ## Red Flags — the comment is noise
