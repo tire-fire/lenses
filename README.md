@@ -1,6 +1,6 @@
 # lenses
 
-A Claude Code plugin that reviews a branch with six independent reviewers instead of
+A Claude Code plugin that reviews a branch with seven independent reviewers instead of
 one, then makes the orchestrator write every finding down before it fixes anything.
 
 Each lens is a fresh-context subagent that sees the diff and nothing else: not your
@@ -10,22 +10,25 @@ disposition before the first edit. Two lenses reaching the same conclusion from
 different directions is the strongest signal the process produces, and the ledger is
 what stops single-lens findings from evaporating.
 
-## The six lenses
+## The seven lenses
 
 | # | Lens | Question it asks | Skill |
 |---|------|------------------|-------|
 | 1 | ripoff-bandaids | What intra-unit accidental complexity (timing loops, dead transitions, local band-aid guards, shallow wrappers) can be removed so the code does its job directly? | bundled |
 | 2 | scope | For each file in the diff: what breaks in the shipping product if this file's changes are dropped? Then, what is bloat? | ponytail-review (bundled, MIT, by Dietrich Gebert) |
-| 3 | correctness | Where does this break, and can each new code path actually fire in the shipping build? | none |
+| 3 | correctness | Where does functional or concurrency logic break, and can each new code path actually fire in the shipping build? | none |
 | 4 | latent-design-review | What data representation or canonical/internal repo abstraction is this code secretly trying to be, and what structure disappears if it becomes that? | bundled |
 | 5 | architecture-doctrine | Across units and layers, is each fact stored where its decision is made, and what single change would force both sides of a boundary to move? | bundled |
 | 6 | fixing-comments | Is every comment (including untouched docstrings above modified code) that asserts a mechanism true? Then delete, compress or keep (ignoring formatter-only alignment hunks). | bundled |
+| 7 | security | Did the diff remove a security guard, violate a trust boundary or threat-model invariant (IDOR, confused deputy, injection, secret leak, fail-open API, asymmetric DoS), or drift from the repo's threat model? | bundled |
 
-Lenses 1, 4, and 5 have explicit non-overlapping boundaries so findings are owned by
-one lens rather than reported three times in different vocabulary: Lens 1 owns
-intra-unit control flow and local mechanisms, Lens 4 owns data representation and
-canonical/internal design analogies, and Lens 5 owns cross-unit state ownership and
-layer boundaries.
+Lenses 1, 4, and 5 have explicit non-overlapping structural boundaries, and Lenses 3
+and 7 split functional/concurrency correctness from adversarial security, so findings
+are owned by one lens rather than reported multiple times in different vocabulary:
+Lens 1 owns intra-unit control flow and local mechanisms, Lens 3 owns functional and
+concurrency correctness, Lens 4 owns data representation and canonical/internal design
+analogies, Lens 5 owns cross-unit state ownership and layer boundaries, and Lens 7
+owns adversarial trust-boundary and security traces.
 
 Lens 2 is briefed without the commit messages on purpose. Knowing the intent makes a
 reviewer grade execution against it, which is exactly the anchor that lens exists to
@@ -44,7 +47,7 @@ Then, in any repo:
 /lenses                  # review the current branch against its upstream base
 /lenses main             # review against a base ref (merge-based automatically)
 /lenses abc123..HEAD     # review an explicit range
-/lenses --followup       # focused 3-lens follow-up pass (ripoff-bandaids, correctness, fixing-comments) after applying ledger fixes
+/lenses --followup       # focused follow-up pass (ripoff-bandaids, correctness, fixing-comments, + security when security surfaces changed) after applying ledger fixes
 ```
 
 ## What the command does
@@ -54,40 +57,48 @@ Then, in any repo:
    Stacked branches are reviewed as a stack.
 2. **Resolves a repo profile** from the tree: the stack, the check commands (from
    `CLAUDE.md`, the deploy or CI script, or the package manifest), which directories
-   ship and which only test, whether an architecture document exists, and the
-   per-repo lens block described below. Every lens is briefed from the same profile.
-3. **Launches all six lenses in one message**, each as a `general-purpose` subagent
+   ship and which only test, whether an architecture document or threat model
+   (`THREAT_MODEL.md` / `ARCHITECTURE.md`) exists, and the per-repo lens block
+   described below. Every lens is briefed from the same profile.
+3. **Launches all seven lenses in one message**, each as a `general-purpose` subagent
    with the skill it needs and a brief written for that lens.
-4. **Ledgers every finding** into `docs/lens-ledger-<branch>.md` with a disposition
+4. **Ledgers every finding** into `/tmp/lens-ledger-<branch>.md` with a disposition
    of `FIXED`, `DEFERRED-<ticket>`, `ASKED` or `REJECTED-<citation>`, before the first
    edit.
 5. **Synthesizes**: convergent findings first, single-lens findings verified before
    acting, rejections written down with a citation, and an audit of the orchestrator's
    own fix diff hunk by hunk, because the lenses only ever saw the pre-fix code.
-6. **Runs a focused 3-lens follow-up pass on Round 2+** (`ripoff-bandaids`,
-   `correctness`, `fixing-comments`) after applying a round's ledger fixes, hunting
-   fix-induced regressions, leftover transition scaffolding, and newly written or
-   invalidated comments (unless the fixes reshaped cross-package architecture or
-   introduced new types/files, in which case all six lenses run again). A follow-up
-   is required whenever the fixes changed behavior or structure, and the loop stops
-   once a round finds only names and wording.
+6. **Runs a focused follow-up pass on Round 2+** (`ripoff-bandaids`, `correctness`,
+   `fixing-comments`, plus `security` whenever the fixes touched auth, routes, input
+   validation, templates/DOM, subprocess/storage/network calls, or credentials) after
+   applying a round's ledger fixes, hunting fix-induced regressions, leftover
+   transition scaffolding, and newly written or invalidated comments (unless the fixes
+   reshaped cross-package architecture or introduced new types/files, in which case
+   all seven lenses run again). A follow-up is required whenever the fixes changed
+   behavior or structure, and the loop stops once a round finds only names and wording.
 
 ## Making it sharp for your repo
 
 The command works on any codebase as-is. What makes it sharp is a short
 `## Review lenses` section in your repo's `CLAUDE.md`, which the orchestrator quotes
-verbatim into the matching lens briefs. It holds the three things that cannot be
-derived from the tree:
+verbatim into the matching lens briefs. It holds the things that cannot be derived
+from the tree:
 
 - **Failure classes this codebase has actually shipped**, for lens 3. A hazard list
   earned from real bugs beats anything derived from the stack. Without it, lens 3
-  applies four checks that hold anywhere: authorization on every new entry point,
-  atomicity and ordering, trust-boundary inputs, and every invariant a new comment
-  claims, plus the "can this path fire in production" trace.
+  applies the functional checks that hold anywhere: atomicity and ordering,
+  generalization and shared-contract assumptions, boundary and partial-failure paths,
+  and every invariant a new comment claims, plus the "can this path fire in
+  production" trace.
 - **Where the design vocabulary lives**, for lens 4: the directories holding the
   core types and shared utilities that everything else builds on.
 - **Comment forms a lint rule requires**, for lens 6, so it never recommends
   deleting one.
+- **Trust boundaries and privilege invariants**, for lens 7, when the repo has
+  domain-specific auth, credential delegation, or sandboxing rules beyond the default
+  five security surfaces (or point lens 7 at `THREAT_MODEL.md` / a `## Threat model`
+  section in `ARCHITECTURE.md`; lens 7 will also flag `THREAT_MODEL_DRIFT` when a PR
+  adds or changes a trust boundary without updating it).
 
 An example from the ESP32 firmware this was written for:
 
@@ -134,11 +145,12 @@ Ruff's `ERA` rule already rejects commented-out code; do not spend findings on i
 
 ## Using the skills on their own
 
-The five bundled skills are ordinary Claude Code skills and work outside the
+The six bundled skills are ordinary Claude Code skills and work outside the
 command: `lenses:ripoff-bandaids`, `lenses:ponytail-review`,
 `lenses:latent-design-review`, `lenses:architecture-doctrine`,
-`lenses:fixing-comments`. Each is advisory: it diagnoses and proposes, and the
-human decides.
+`lenses:fixing-comments`, `lenses:security`. Each is advisory: it diagnoses and
+proposes (and `lenses:security` can also bootstrap or update a repository's concise
+`THREAT_MODEL.md`), and the human decides.
 
 ## License
 
