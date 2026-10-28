@@ -49,9 +49,12 @@ if you cannot find one, say so in the preamble rather than inventing it.
 3. **Production roots vs test roots** — the directories that ship, and the
    directories that only test them. The lenses grep the former to confirm "unused"
    and refuse to call anything under the latter bloat.
-4. **Doctrine and glossary** — whether the repo has a `CONTEXT.md`,
-   `ARCHITECTURE.md` or a design document `CLAUDE.md` points at. If not, say so, so
-   lens 5 uses its axes as the doctrine instead of hunting for a file.
+4. **Doctrine, glossary, and threat model** — whether the repo has a `CONTEXT.md`,
+   `ARCHITECTURE.md`, `THREAT_MODEL.md`, or a design/security document `CLAUDE.md`
+   points at (including a `## Threat model` or `## Security model` section inside
+   `ARCHITECTURE.md`). If not, say so, so lens 5 uses its axes as the doctrine and
+   lens 7 uses its five surfaces (and flags `THREAT_MODEL_DRIFT` if the branch touches
+   security boundaries) instead of hunting for files.
 5. **The per-repo lens block** — a `## Review lenses` section in `CLAUDE.md`, if
    present. It holds what cannot be derived from the tree: the failure classes this
    codebase has actually shipped (for lens 3), where its design vocabulary lives
@@ -115,10 +118,12 @@ by one lens rather than reported multiple times in different vocabulary:**
 - **Lens 5 (`architecture-doctrine`)** owns *cross-unit structural boundaries and
   single source of truth* (the six axes: ownership, authority, layer separation,
   truth propagation, minimum scope, coupling quality).
-- **Lens 7 (`security`)** owns *adversarial security & trust boundaries*:
-  authentication, entry-point and object-level authorization (IDOR / confused
-  deputy), CSRF and redirect safety, untrusted source-to-sink injection/traversal,
-  secret/credential/token handling, and asymmetric resource exhaustion.
+- **Lens 7 (`security`)** owns *adversarial security, trust boundaries & threat-model
+  drift*: guard-removal regressions, authentication, entry-point and object-level
+  authorization (IDOR / confused deputy / credential delegation), CSRF and redirect
+  safety, untrusted source-to-sink injection/traversal, secret/credential/token
+  handling, misuse-prone APIs ("sharp edges" / fail-closed defaults), asymmetric
+  resource exhaustion, and keeping the repo's threat model in sync with the code.
 
 **1. ripoff-bandaids** — invoke the `lenses:ripoff-bandaids` skill first. Focus on
 intra-unit control flow and local mechanisms (timing loops, dead transitions,
@@ -295,56 +300,62 @@ one, but hold it to the same bar below: one line where one line will do.
 Then the DELETE / COMPRESS / KEEP pass with counts, DELETE first. A KEEP needs
 the one non-obvious fact the comment carries; if you cannot name it, it is DELETE.
 
-**7. security** — no skill; do an adversarial security and trust-boundary review
-(defer non-security functional/concurrency edge cases to Lens 3 `correctness`).
+**7. security** — invoke the `lenses:security` skill first. Read the repo's threat
+model (`THREAT_MODEL.md` or the security/threat-model section of `ARCHITECTURE.md` /
+`CLAUDE.md`) if one exists and cite its invariants; respect its documented
+**Accepted Risks / Non-Goals** so intentional trade-offs are never re-litigated. If
+the per-repo lens block names trust boundaries or privilege invariants, brief them
+verbatim as the primary focus. Defer non-security functional/concurrency edge cases
+to Lens 3 (`correctness`).
 
-If the per-repo lens block names this codebase's trust boundaries or privilege
-invariants, brief them verbatim as the primary focus. Whether or not it does, trace
-every new or modified path across these five security surfaces:
+Execute the skill's three-step differential review:
 
-- **Entry-point & object-level authorization (IDOR / confused deputy)** — for every
-  new or changed route, handler, RPC, CLI command, or message consumer: confirm it
-  enforces the repo's authentication and privilege checks, verifies the caller is
-  authorized for the *specific* target resource/team/tenant/pool in the request (not
-  merely signed in), executes downstream actions with the right principal's
-  credential rather than a privileged service credential by mistake, and fails
-  closed with the same response shape its siblings give (not a redirect where
-  siblings return 403, not a stack trace where siblings return an error frame).
-- **State-changing request integrity & redirect safety** — confirm state-changing
-  operations use safe methods (`POST`/`PUT`/`DELETE`, never `GET`), enforce CSRF or
-  origin checks consistent with sibling handlers, and validate any redirect target
-  (`next`, `return_to`, `redirect`) against open redirects (including
-  scheme-relative `//`, backslash `\/`, and control characters).
-- **Untrusted source-to-sink injection & traversal** — trace attacker- or
-  peer-controlled inputs (query params, request bodies, headers, wire frames,
-  external API/DB records, filenames, environment) to every sink:
-  - HTML/JS/DOM sinks (`template.HTML`, `innerHTML`, `insertAdjacentHTML`,
-    `javascript:`/`data:` URLs).
-  - Subprocess & CLI sinks (`exec.Command` shell invocation, or positional arguments
-    that can start with `-` passed without `--` flag termination).
-  - Filesystem & archive sinks (`filepath.Join`, symlink or `..` traversal outside
-    the intended root).
-  - Query, SSRF & header sinks (SQL, outbound HTTP URLs/hosts, response header /
-    log injection).
-- **Secret, credential & token handling** — confirm tickets, API tokens, session
-  cookies, private keys, or sealed blobs never leak into log lines, error pages,
-  SSE/WebSocket broadcasts, URL query strings, or serialized responses; check that
-  secret/MAC comparisons are constant-time and crypto/sealing nonces and AAD/context
-  domains cannot be replayed across contexts.
-- **Asymmetric resource exhaustion (DoS)** — unbounded `io.ReadAll`, unbounded
-  slice/map/goroutine allocation per request, locks or DB transactions held across
-  external network calls, or expensive work reachable before authentication.
+1. **Guard-removal & regression triage (`-` lines first)** — inspect removed or
+   loosened checks in `git diff` and `git log` / `git blame` on touched security
+   functions for dropped auth gates, widened permissions/redirects, removed bounds
+   checks, or weakened crypto/sealing invariants, and check whether any refactored
+   validation moved out of a shared helper into only a subset of callers.
+2. **Trace the five adversarial surfaces** across every new or modified path:
+   - **Entry-point & object-level authorization (IDOR / confused deputy)** — every
+     new or changed route, handler, RPC, CLI command, or consumer enforces auth and
+     privilege gates, checks authorization for the *specific* target resource/ID/pool
+     in the request, executes downstream calls with the right principal's credential
+     rather than a service credential by mistake, and fails closed with the same
+     status and shape as siblings.
+   - **State-changing request integrity & redirect safety** — state-changing
+     operations use `POST`/`PUT`/`DELETE` (never `GET`), enforce CSRF / `Origin`
+     checks consistent with siblings, and validate redirect targets against open
+     redirects (`//`, `\/`, control chars, host confusion).
+   - **Untrusted source-to-sink injection & traversal** — trace attacker-, peer-, or
+     upstream-controlled inputs to HTML/JS/DOM sinks (`template.HTML`, `innerHTML`,
+     `javascript:`/`data:` URLs), subprocess/CLI sinks (`sh -c`, or positional args
+     starting with `-` without `--`), filesystem/archive sinks (`filepath.Join`, `..`,
+     symlinks), and SQL/SSRF/header/log sinks.
+   - **Secret, credential & token handling** — tickets, tokens, cookies, private keys,
+     and sealed blobs never leak into logs, error pages, HTML attributes, SSE/WS
+     broadcasts, URL query strings, or JSON responses; secret/MAC checks are
+     constant-time; AEAD nonces and AAD/context domains cannot be replayed across
+     contexts.
+   - **Misuse-resistant APIs ("sharp edges") & asymmetric DoS** — new helpers, options
+     structs, or config fields must fail closed on zero/empty/`nil` values in
+     production (never "empty verifier means allow all"); no unbounded `io.ReadAll`,
+     unbounded per-request allocations, locks/transactions held across external
+     network calls, or expensive pre-auth work.
+3. **Reachability, blast radius & threat-model drift** — before reporting, trace
+   upstream to confirm the input is not already gated/typed/escaped, trace downstream
+   to confirm production reachability and caller count, and apply the skill's hard
+   exclusions (no generic rate-limiting/WAF wishes, no theoretical DoS without an
+   asymmetric trigger, no "secrets in memory", no defense-in-depth nits on trusted
+   internal values, no unit-test-only findings). If the diff adds or changes an entry
+   point, trust boundary, principal/credential rule, secret, or external sink that is
+   missing from or contradicts the repo's threat model, report `THREAT_MODEL_DRIFT`
+   with the exact update needed.
 
-> **Strict anti-noise bar:** Every finding must trace a concrete **untrusted source
-> → code path → sink / security impact** in the actual source (`file:line`), after
-> verifying that the input is not already validated, escaped, or gated upstream. Do
-> not report generic OWASP checklists, hypothetical threat models, or defense-in-depth
-> wishes on already-trusted internal values.
-
-Report each finding as: one-sentence vulnerability, concrete exploit scenario
-(attacker capability + input/state → security impact), `file:line`, and CONFIRMED
-(traced end-to-end or reproduced) vs PLAUSIBLE. Most severe first. If nothing real,
-say so rather than padding.
+Report each vulnerability as: one-sentence defect, concrete exploit scenario
+(`attacker capability + untrusted source → code path → sink / impact`), `file:line`,
+and `CONFIRMED` vs `PLAUSIBLE`. Report threat-model gaps as `THREAT_MODEL_DRIFT` with
+`file:line` and the invariant to record. Most severe first. If nothing real, say so
+rather than padding.
 
 ## 3. While they run
 
@@ -409,6 +420,11 @@ This step exists because skipping it fails the same four ways every time:
 - Say which findings you are deferring and why — separate "already decided against,
   here's the reason" from "genuinely new." A deferral needs an owner: a ticket
   number, or an ASKED row that survives into the next turn.
+- **Keep the threat model in sync when fixing `THREAT_MODEL_DRIFT`.** When Lens 7
+  reports `THREAT_MODEL_DRIFT` (a new entry point, trust boundary, credential
+  delegation path, secret, or external sink not reflected in `THREAT_MODEL.md` or
+  `ARCHITECTURE.md`), update or bootstrap that threat-model section alongside the
+  code fixes using the compact, code-cited structure in `lenses:security`.
 - **Re-run the lenses after a round of fixes, not before a push.** Every report
   predates the fixes applied from it, so a second round reviews code nothing has
   seen. Expect the largest category in round N+1 to be comments written in round N;

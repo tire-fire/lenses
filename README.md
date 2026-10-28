@@ -20,7 +20,7 @@ what stops single-lens findings from evaporating.
 | 4 | latent-design-review | What data representation or canonical/internal repo abstraction is this code secretly trying to be, and what structure disappears if it becomes that? | bundled |
 | 5 | architecture-doctrine | Across units and layers, is each fact stored where its decision is made, and what single change would force both sides of a boundary to move? | bundled |
 | 6 | fixing-comments | Is every comment (including untouched docstrings above modified code) that asserts a mechanism true? Then delete, compress or keep (ignoring formatter-only alignment hunks). | bundled |
-| 7 | security | Can an untrusted caller or input cross a trust boundary to bypass object-level auth, confuse credentials, inject into a sink, leak a secret, or exhaust resources? | none |
+| 7 | security | Did the diff remove a security guard, violate a trust boundary or threat-model invariant (IDOR, confused deputy, injection, secret leak, fail-open API, asymmetric DoS), or drift from the repo's threat model? | bundled |
 
 Lenses 1, 4, and 5 have explicit non-overlapping structural boundaries, and Lenses 3
 and 7 split functional/concurrency correctness from adversarial security, so findings
@@ -57,8 +57,9 @@ Then, in any repo:
    Stacked branches are reviewed as a stack.
 2. **Resolves a repo profile** from the tree: the stack, the check commands (from
    `CLAUDE.md`, the deploy or CI script, or the package manifest), which directories
-   ship and which only test, whether an architecture document exists, and the
-   per-repo lens block described below. Every lens is briefed from the same profile.
+   ship and which only test, whether an architecture document or threat model
+   (`THREAT_MODEL.md` / `ARCHITECTURE.md`) exists, and the per-repo lens block
+   described below. Every lens is briefed from the same profile.
 3. **Launches all seven lenses in one message**, each as a `general-purpose` subagent
    with the skill it needs and a brief written for that lens.
 4. **Ledgers every finding** into `/tmp/lens-ledger-<branch>.md` with a disposition
@@ -95,7 +96,9 @@ from the tree:
   deleting one.
 - **Trust boundaries and privilege invariants**, for lens 7, when the repo has
   domain-specific auth, credential delegation, or sandboxing rules beyond the default
-  five security surfaces.
+  five security surfaces (or point lens 7 at `THREAT_MODEL.md` / a `## Threat model`
+  section in `ARCHITECTURE.md`; lens 7 will also flag `THREAT_MODEL_DRIFT` when a PR
+  adds or changes a trust boundary without updating it).
 
 An example from the ESP32 firmware this was written for:
 
@@ -142,11 +145,12 @@ Ruff's `ERA` rule already rejects commented-out code; do not spend findings on i
 
 ## Using the skills on their own
 
-The five bundled skills are ordinary Claude Code skills and work outside the
+The six bundled skills are ordinary Claude Code skills and work outside the
 command: `lenses:ripoff-bandaids`, `lenses:ponytail-review`,
 `lenses:latent-design-review`, `lenses:architecture-doctrine`,
-`lenses:fixing-comments`. Each is advisory: it diagnoses and proposes, and the
-human decides.
+`lenses:fixing-comments`, `lenses:security`. Each is advisory: it diagnoses and
+proposes (and `lenses:security` can also bootstrap or update a repository's concise
+`THREAT_MODEL.md`), and the human decides.
 
 ## License
 
