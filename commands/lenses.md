@@ -33,6 +33,17 @@ ahead of the merge base, say by how much and name the files it gained: those are
 the merge conflicts this branch will hit, which is worth knowing before review, not
 after.
 
+**Check the range carries only the branch's own changes.** A rebase done by
+rebuilding commits from saved trees, or by re-parenting old commits onto a newer
+base, leaves commits whose trees still hold the old base: the diff then silently
+reverts everything the base gained, and every lens reviews the revert as if the
+branch wrote it. Before launching, compare the files the range changes with the
+files its commits touch (`git diff --stat $BASE..HEAD` against
+`git log --format= --name-only $BASE..HEAD | sort -u`), and for each commit check
+that its own diff (`git diff <commit>^ <commit> --stat`) holds only that commit's
+work. If the range deletes or rolls back files the base just added, stop and redo
+the rebase with a real `git rebase` before any lens runs.
+
 ### The repo profile
 
 Every lens needs the same five facts about this repo. Resolve them once, here, from
@@ -72,6 +83,19 @@ Seven `Agent` calls with `subagent_type: general-purpose`, all in a single messa
 they run concurrently. Do **not** invoke the skills inline in your own context —
 the whole point is that each lens reads the diff without your reasoning attached to
 it. Do not run any of them yourself while they work.
+
+**Pick each lens's model on purpose; never let all seven inherit the most
+expensive one.** Review cost is dominated by subagents, and most lenses are
+reading and pattern-matching tasks. Pass `model` on every `Agent` call:
+
+- the most capable model for Lens 3 (`correctness`), which traces concurrency and
+  state across files, and for any agent that applies fixes;
+- the same for Lens 7 (`security`) when the branch touches authentication,
+  sessions, credentials, permissions or a trust boundary; a mid-tier model
+  otherwise;
+- a mid-tier model for Lenses 1, 2, 4, 5 and 6.
+
+If the repo or the person says otherwise, follow that instead.
 
 Give every agent this common preamble, substituting the resolved range and profile:
 
@@ -185,6 +209,13 @@ Whether or not it does, also apply the checks that hold in any codebase:
 - **Every invariant a new comment, docstring or test name claims.** Trace it. A
   claim about ordering, lifetime, or "always/never" is a hypothesis until the code
   proves it.
+- **A fix that adds a mechanism.** In a follow-up round, when a fix answered a
+  finding by adding a guard, flag, lock, marker, retry or second code path, check
+  whether the state it protects could instead be made simpler (one flag where
+  there are three, one owner where two writers race, one transaction where two
+  statements leave a gap). Report it when a simpler state exists: each added
+  mechanism is new surface the next round has to review, and a chain of them is
+  how a branch keeps producing findings round after round.
 
 > **Ask explicitly: can each new code path actually fire in the shipping build?**
 > A mechanism gated behind a flag, an init call, a registration or a route that
@@ -195,9 +226,12 @@ Whether or not it does, also apply the checks that hold in any codebase:
 > prove the replacement is reachable in the configuration that ships.
 
 Report each finding as: one-sentence defect, concrete failure scenario
-(inputs/state → wrong behavior), `file:line`, and CONFIRMED (traced or executed)
-vs PLAUSIBLE. Most severe first. Writing a scratch program or test to prove a
-suspected bug is encouraged. If nothing real, say so rather than padding.
+(inputs/state → wrong behavior), `file:line`, CONFIRMED (traced or executed)
+vs PLAUSIBLE, and a severity (high, medium, low). Most severe first. Writing a
+scratch program or test to prove a suspected bug is encouraged. If nothing real,
+say so rather than padding. Put low-severity PLAUSIBLE items in a separate
+"below the bar" list at the end: they are candidates for the PR's known limits,
+not automatic fixes (see §6).
 
 **4. latent-design-review** — invoke the `lenses:latent-design-review` skill first.
 Follow its process step 1 seriously: inventory the repo's existing design
@@ -288,7 +322,9 @@ one, but hold it to the same bar below: one line where one line will do.
 > cited the declaration and the new use, called the roles identical, and never
 > opened the old use.
 
-> **Fact-check the change's own description too.** When the branch has a PR (`gh pr
+> **Fact-check the change's own description too** (in Round 1 and in the final
+> round before the PR is opened or updated; commit messages rewritten in between
+> are checked once, at the end). When the branch has a PR (`gh pr
 > view --json body`), or the orchestrator gives you the description it will post,
 > trace every claim in it the same way: what the change does, what the old code
 > did, what a test guarantees. A description is read by the person deciding whether
@@ -353,8 +389,10 @@ Execute the skill's three-step differential review:
 
 Report each vulnerability as: one-sentence defect, concrete exploit scenario
 (`attacker capability + untrusted source → code path → sink / impact`), `file:line`,
-and `CONFIRMED` vs `PLAUSIBLE`. Report threat-model gaps as `THREAT_MODEL_DRIFT` with
-`file:line` and the invariant to record. Most severe first. If nothing real, say so
+`CONFIRMED` vs `PLAUSIBLE`, and a severity (high, medium, low). Low-severity
+`PLAUSIBLE` items go in a separate "below the bar" list at the end. Report
+threat-model gaps as `THREAT_MODEL_DRIFT` with `file:line` and the invariant to
+record. Most severe first. If nothing real, say so
 rather than padding.
 
 ## 3. While they run
@@ -434,10 +472,23 @@ This step exists because skipping it fails the same four ways every time:
   seen. Expect the largest category in round N+1 to be comments written in round N;
   that has held every time so far. See §6 for when a follow-up is required and when
   to stop.
-- After fixing: re-run every check command from the profile. **Falsify every test
-  you added or changed** by reverting its mechanism and confirming it fails; a test
-  that passes with the mechanism gone is worthless. Check the falsification grep
-  actually matches the runner's output format before trusting a clean result.
+- After fixing: re-run the checks the fixes touch (lint, types, and the tests for
+  the changed files). **Falsify every test you added or changed** by reverting its
+  mechanism and confirming it fails; a test that passes with the mechanism gone is
+  worthless. Check the falsification grep actually matches the runner's output
+  format before trusting a clean result. Run every check command from the profile,
+  including the full and browser suites, once before the PR is opened or updated,
+  not after every round.
+- **Prefer the simpler state to another guard.** When a finding shows a race,
+  a stale read or a missed case, first ask whether the state can be made simpler
+  (one owner, one flag, one transaction) before adding a lock, marker or retry.
+  Every mechanism a fix adds is code the next round has to review.
+- **When fixes are delegated, give each round a fresh fixer.** Brief a new agent
+  with the round's ledger rows, the branch, and the rules it must keep, instead of
+  resuming the previous round's fixer: a resumed agent carries every earlier
+  round's context into each call, and its cost grows with every round. Tell it to
+  rebase with a real `git rebase` (never by rebuilding or re-parenting saved trees)
+  and to report the range check from §1 with its results.
 
 ## 6. Follow-up rounds (Round 2+ / `--followup`)
 
@@ -459,9 +510,14 @@ structures/files:
    calls, or credentials; omit on pure comment, CSS, or internal refactor fixes)* —
    hunts auth, injection, or secret-handling regressions introduced by the fixes.
 
-Brief the follow-up lenses with the full branch range (`$BASE..HEAD`), the list of
-files modified since the previous ledger so they focus on what changed in Round N
-while still seeing the full branch context, and a compact summary of prior rounds'
+When the round's fixes changed only a few files, one combined correctness and
+security reviewer on that delta can replace Lenses 3 and 7: in follow-ups they
+mostly converge on the same findings.
+
+Brief the follow-up lenses with **the delta since the previous round**
+(`<previous round's HEAD>..HEAD`) as the range to review, the full branch range
+(`$BASE..HEAD`) only as context for tracing callers, the previous round's
+findings to recheck, and a compact summary of prior rounds'
 `REJECTED-<citation>` items (*"Already verified and rejected in earlier rounds — do
 not re-report unless new edits invalidated the citation: ..."*) so follow-up agents
 do not re-litigate settled design trade-offs. Write their findings to a new round
@@ -483,3 +539,18 @@ launch another round to review those edits. Rounds after that point cost minutes
 each and return wording about the previous round's wording. A follow-up that finds
 a behavior or structure problem keeps the loop going; one that finds only phrasing
 ends it.
+
+**Only CONFIRMED or medium-and-up findings earn another round.** From Round 2
+on, a round whose findings are all low-severity PLAUSIBLE edge cases (a narrow race
+nobody reproduced, a rare operator sequence, a cosmetic mislabel) also ends the
+loop: list them in the PR description as known limits with their `file:line`, and
+ledger them as `DEFERRED-<PR>`. Chasing each one with another fix and another round
+is how a branch reaches its tenth round, and each fix tends to add the next round's
+findings.
+
+**Cap the rounds.** Stop after five rounds on one branch (or the cap the person or
+repo sets) whatever the last round found. Anything still open goes into the PR's
+known limits, with a ledger row, and the PR says the cap was reached. If a branch
+is still producing behavior findings at the cap, say so plainly: it usually means
+the change is too large or its design keeps shifting, which a person should decide
+on, not another round.
