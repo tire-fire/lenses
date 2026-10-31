@@ -20,3 +20,4 @@ Scope: Every vulnerability finding must trace `untrusted source -> code path -> 
 Output ONLY one line per finding (most severe first; group low-severity `PLAUSIBLE` lines under `Below the bar:` at the end; no preamble, summary, or code blocks), or `Clean.`:
 - Vulnerability: `<file:line> | <CONFIRMED|PLAUSIBLE> | <high|medium|low> | <defect> | <attacker capability + source -> path -> sink/impact> -> <fix>`
 - Drift: `THREAT_MODEL_DRIFT | <file:line> | <exact invariant to add/update in THREAT_MODEL.md / ARCHITECTURE.md>`
+Example: `web/packets/views.py:91 | CONFIRMED | high | IDOR on packet download | authenticated team A passes ?team_id=B -> packet_download() skips team ownership check -> reads team B packet -> filter by request.user.team`

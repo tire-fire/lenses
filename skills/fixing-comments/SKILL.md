@@ -18,3 +18,4 @@ Rules:
 - Never add new comments during cleanup unless a hidden hazard is non-obvious.
 Output ONLY one line per actionable item (`FALSE`/`OVERCLAIMING` first, then `DELETE`, then `COMPRESS`; no preamble, summary, ratio tables, or `KEEP` list), or `Clean.`:
 `<file:line or PR-body> | <FALSE|OVERCLAIMING|DELETE|COMPRESS> | <contradicting file:line evidence + fix, OR reason to delete, OR exact 1-line replacement text>`
+Example: `web/core/auth.py:64 | FALSE | docstring claims disabled users keep read access, but has_permission() at L41 returns False when not account_active -> delete claim`

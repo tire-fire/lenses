@@ -22,3 +22,4 @@ Internal gates & catalog (apply before emitting any candidate; do not output gat
 3. Load-bearing gate: verify what breaks if removed; if removal pushes complexity into N callers, drop silently. If unverified, mark `Speculative`.
 Output ONLY one line per surviving finding ranked by dependencies + obscurity removed (no preamble, summary, code blocks, or footer), or `Clean.`:
 `<file:line> | <catalog-tag> | <Strong|Worth exploring|Speculative> | <band-aid mechanism & what collapses> -> <direct replacement>`
+Example: `bot/queue.py:84 | timing | Strong | 500ms polling loop waiting for worker ready flag -> await worker.ready_event.wait() directly`
