@@ -14,13 +14,13 @@ what stops single-lens findings from evaporating.
 
 | # | Lens | Question it asks | Skill |
 |---|------|------------------|-------|
-| 1 | ripoff-bandaids | What intra-unit accidental complexity (timing loops, dead transitions, local band-aid guards, shallow wrappers) can be removed so the code does its job directly? | bundled |
-| 2 | scope | For each file in the diff: what breaks in the shipping product if this file's changes are dropped? Then, what is bloat? | ponytail-review (bundled, MIT, by Dietrich Gebert) |
-| 3 | correctness | Where does functional or concurrency logic break, and can each new code path actually fire in the shipping build? | none |
-| 4 | latent-design-review | What data representation or canonical/internal repo abstraction is this code secretly trying to be, and what structure disappears if it becomes that? | bundled |
-| 5 | architecture-doctrine | Across units and layers, is each fact stored where its decision is made, and what single change would force both sides of a boundary to move? | bundled |
+| 1 | removing-bandaids | What intra-unit accidental complexity (timing loops, dead transitions, local band-aid guards, shallow wrappers) can be removed so the code does its job directly? | bundled |
+| 2 | trimming-bloat | For each file in the diff: what breaks in the shipping product if this file's changes are dropped? Then, what is bloat? | bundled (MIT, derived from ponytail by Dietrich Gebert) |
+| 3 | checking-correctness | Where does functional or concurrency logic break, and can each new code path actually fire in the shipping build? | bundled |
+| 4 | reshaping-latent-design | What data representation or canonical/internal repo abstraction is this code secretly trying to be, and what structure disappears if it becomes that? | bundled |
+| 5 | evaluating-architecture | Across units and layers, is each fact stored where its decision is made, and what single change would force both sides of a boundary to move? | bundled |
 | 6 | fixing-comments | Is every comment (including untouched docstrings above modified code) that asserts a mechanism true? Then delete, compress or keep (ignoring formatter-only alignment hunks). | bundled |
-| 7 | security | Did the diff remove a security guard, violate a trust boundary or threat-model invariant (IDOR, confused deputy, injection, secret leak, fail-open API, asymmetric DoS), or drift from the repo's threat model? | bundled |
+| 7 | auditing-security | Did the diff remove a security guard, violate a trust boundary or threat-model invariant (IDOR, confused deputy, injection, secret leak, fail-open API, asymmetric DoS), or drift from the repo's threat model? | bundled |
 
 Lenses 1, 4, and 5 have explicit non-overlapping structural boundaries, and Lenses 3
 and 7 split functional/concurrency correctness from adversarial security, so findings
@@ -47,7 +47,7 @@ Then, in any repo:
 /lenses                  # review the current branch against its upstream base
 /lenses main             # review against a base ref (merge-based automatically)
 /lenses abc123..HEAD     # review an explicit range
-/lenses --followup       # focused follow-up pass (ripoff-bandaids, correctness, fixing-comments, + security when security surfaces changed) after applying ledger fixes
+/lenses --followup       # focused follow-up pass (removing-bandaids, checking-correctness, fixing-comments, + auditing-security when security surfaces changed) after applying ledger fixes
 ```
 
 ## What the command does
@@ -68,8 +68,8 @@ Then, in any repo:
 5. **Synthesizes**: convergent findings first, single-lens findings verified before
    acting, rejections written down with a citation, and an audit of the orchestrator's
    own fix diff hunk by hunk, because the lenses only ever saw the pre-fix code.
-6. **Runs a focused follow-up pass on Round 2+** (`ripoff-bandaids`, `correctness`,
-   `fixing-comments`, plus `security` whenever the fixes touched auth, routes, input
+6. **Runs a focused follow-up pass on Round 2+** (`removing-bandaids`, `checking-correctness`,
+   `fixing-comments`, plus `auditing-security` whenever the fixes touched auth, routes, input
    validation, templates/DOM, subprocess/storage/network calls, or credentials) after
    applying a round's ledger fixes, hunting fix-induced regressions, leftover
    transition scaffolding, and newly written or invalidated comments (unless the fixes
@@ -145,15 +145,16 @@ Ruff's `ERA` rule already rejects commented-out code; do not spend findings on i
 
 ## Using the skills on their own
 
-The six bundled skills are ordinary Claude Code skills and work outside the
-command: `lenses:ripoff-bandaids`, `lenses:ponytail-review`,
-`lenses:latent-design-review`, `lenses:architecture-doctrine`,
-`lenses:fixing-comments`, `lenses:security`. Each is advisory: it diagnoses and
-proposes (and `lenses:security` can also bootstrap or update a repository's concise
+The seven bundled skills are ordinary Claude Code skills and work outside the
+command: `lenses:removing-bandaids`, `lenses:trimming-bloat`,
+`lenses:checking-correctness`, `lenses:reshaping-latent-design`,
+`lenses:evaluating-architecture`, `lenses:fixing-comments`,
+`lenses:auditing-security`. Each is advisory: it diagnoses and proposes (and
+`lenses:auditing-security` can also bootstrap or update a repository's concise
 `THREAT_MODEL.md`), and the human decides.
 
 ## License
 
-MIT. `skills/ponytail-review/` is from
+MIT. `skills/trimming-bloat/` is derived from
 [ponytail](https://github.com/DietrichGebert/ponytail) by Dietrich Gebert, also MIT;
 its license is reproduced alongside it.
