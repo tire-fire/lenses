@@ -1,6 +1,6 @@
 {
   "name": "lenses",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Seven independent review lenses run as fresh-context subagents against a branch diff, with every finding ledgered before the first fix.",
   "author": {
     "name": "Tirefire",

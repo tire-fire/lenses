@@ -16,3 +16,4 @@ Yields & out of scope (drop silently):
 - Drop reinvention, data representation/type selection, compensating retry/polling loops, local guards, shallow wrappers, and line-level cuts.
 Output ONLY one line per finding (no preamble, summary, code blocks, or deferred list), or `Clean.`:
 `<file:line> | <Axis 1-6 or doc citation> | <misplaced state or boundary coupling> -> <single owner, direction, or propagated fact>`
+Example: `bot/cogs/tickets.py:84, web/tickets/views.py:142 | Axis 2 | both cog and view reconstruct claim eligibility from 3 status flags -> move to Ticket.can_claim(actor) on domain model`

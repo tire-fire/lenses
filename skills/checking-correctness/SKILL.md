@@ -14,3 +14,4 @@ Checklist:
 6. Production reachability: trace every new code path from production entry points (`main`, app factory, URL table, cog/plugin registry, firmware `setup()`), not test fixtures; verify replacements for working code fire in the shipping configuration.
 Output ONLY one line per finding (most severe first; group low-severity `PLAUSIBLE` lines under `Below the bar:` at the end; no preamble, summary, or code blocks), or `Clean.`:
 `<file:line> | <CONFIRMED|PLAUSIBLE> | <high|medium|low> | <defect> | <inputs/state -> wrong behavior> -> <fix>`
+Example: `web/scoring/views.py:112 | CONFIRMED | high | unlocked read-then-write on assignment status | two concurrent graders submit -> second overwrites first -> wrap in transaction.atomic() with select_for_update()`

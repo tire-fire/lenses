@@ -18,3 +18,4 @@ Internal gates (apply before emitting any candidate; do not output gate prose):
 6. Behavior preservation gate: verify virtual dispatch, driver/runtime callbacks, `#ifdef` gates, templates, and weak symbols; if unverified, mark `Speculative`.
 Output ONLY one line per surviving finding ranked by structure/dependencies collapsed (no preamble, summary, code blocks, or footer), or `Clean.`:
 `<file:line> | Lens <1-4> | <Strong|Worth exploring|Speculative> | <awkward shape at HEAD & structure that collapses> -> <reshape / target construct>`
+Example: `web/scoring/models.py:45 | Lens 3 | Strong | 3 booleans (is_claimed, is_submitted, is_approved) + 6 validity branches -> single Status TextChoices enum + transition table`
