@@ -9,7 +9,7 @@ Run the seven review lenses against `$ARGUMENTS` as seven concurrent fresh-conte
   1. Stack: languages/frameworks in diff.
   2. Check commands: exact test, lint, type-check, and build commands (plus required DB/env setup) from `CLAUDE.md`, CI/deploy scripts, or package manifests.
   3. Roots: production directories vs. test directories.
-  4. Docs: `CONTEXT.md`, `ARCHITECTURE.md`, `THREAT_MODEL.md`, or design/security sections in `CLAUDE.md` (state if absent).
+  4. Docs: `CONTEXT.md`, `ARCHITECTURE.md`, `THREAT_MODEL.md`, spec directories (`openspec/`, `specs/`, `docs/`), or design/security sections in `CLAUDE.md` (state if absent).
   5. Per-repo lens block: `## Review lenses` in `CLAUDE.md` (Lens 3 hazards, Lens 4 vocabulary paths, Lens 6 lint exemptions, Lens 7 trust boundaries); quote verbatim into matching lens briefs or state absent.
 ## 2. Launch 7 Subagents in ONE Message
 Spawn 7 `Agent` calls (`subagent_type: general-purpose`) in one message. Never run skills inline. Set `model` on each call (unless user/repo overrides):
@@ -23,7 +23,7 @@ Per-lens instructions:
 2. `trimming-bloat`: invoke `lenses:trimming-bloat` on `<RANGE>`.
    - Pass 1 (per-file scope): trace production consumers to check what breaks in the shipping product if this file's changes are dropped entirely. Output one line per file whose only consumers are tests or that changes no observable behavior (rename/reformat sweeps): `<file> | scope | <real consumers> | <misleading impression if kept>`.
    - Pass 2 (leanness): run `lenses:trimming-bloat` across `<RANGE>`, grepping production roots to confirm any dead/unused/dup claim and verifying `shrink:` preserves exact behavior across callers.
-3. `checking-correctness`: invoke `lenses:checking-correctness` on `<RANGE>` (quoting per-repo Lens 3 hazards verbatim if present).
+3. `checking-correctness`: invoke `lenses:checking-correctness` on `<RANGE>` (quoting per-repo Lens 3 hazards verbatim if present, and naming the spec/design doc paths from profile item 4).
 4. `reshaping-latent-design`: invoke `lenses:reshaping-latent-design` on `<RANGE>` (starting vocabulary inventory from per-repo Lens 4 paths if present).
 5. `evaluating-architecture`: invoke `lenses:evaluating-architecture` on `<RANGE>`.
 6. `fixing-comments`: invoke `lenses:fixing-comments` across `<RANGE>` (including untouched docstrings/comments above modified code and per-repo Lens 6 lint exemptions). Check the PR description (`gh pr view --json body` or draft summary) in Round 1 and the final round before PR creation/update.

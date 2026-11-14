@@ -16,7 +16,7 @@ what stops single-lens findings from evaporating.
 |---|------|------------------|-------|
 | 1 | removing-bandaids | What intra-unit accidental complexity (timing loops, dead transitions, local band-aid guards, shallow wrappers) can be removed so the code does its job directly? | bundled |
 | 2 | trimming-bloat | For each file in the diff: what breaks in the shipping product if this file's changes are dropped? Then, what is bloat? | bundled (MIT, derived from ponytail by Dietrich Gebert) |
-| 3 | checking-correctness | Where does functional or concurrency logic break, and can each new code path actually fire in the shipping build? | bundled |
+| 3 | checking-correctness | Where does functional or concurrency logic break, does each new guard cover every reader of what it guards, is every claim the repo's specs and design docs make about the changed code true, and can each new code path actually fire in the shipping build? | bundled |
 | 4 | reshaping-latent-design | What data representation or canonical/internal repo abstraction is this code secretly trying to be, and what structure disappears if it becomes that? | bundled |
 | 5 | evaluating-architecture | Across units and layers, is each fact stored where its decision is made, and what single change would force both sides of a boundary to move? | bundled |
 | 6 | fixing-comments | Is every comment (including untouched docstrings above modified code) that asserts a mechanism true? Then delete, compress or keep (ignoring formatter-only alignment hunks). | bundled |
@@ -88,8 +88,9 @@ from the tree:
   earned from real bugs beats anything derived from the stack. Without it, lens 3
   applies the functional checks that hold anywhere: atomicity and ordering,
   generalization and shared-contract assumptions, boundary and partial-failure paths,
-  and every invariant a new comment claims, plus the "can this path fire in
-  production" trace.
+  guard coverage (every other reader of what a new guard protects), every invariant a
+  new comment claims, and every statement the repo's specs and design docs make about
+  the changed code, plus the "can this path fire in production" trace.
 - **Where the design vocabulary lives**, for lens 4: the directories holding the
   core types and shared utilities that everything else builds on.
 - **Comment forms a lint rule requires**, for lens 6, so it never recommends
